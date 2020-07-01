@@ -15,17 +15,29 @@
 
 package snapshot
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
+)
+
+// Node for holding trie node information
+type Node struct {
+	NodeType NodeType
+	Path     []byte
+	Key      common.Hash
+	Value    []byte
+}
 
 // NodeType for explicitly setting type of node
-type NodeType string
+type NodeType int
 
 const (
-	Unknown   NodeType = "Unknown"
-	Leaf      NodeType = "Leaf"
-	Extension NodeType = "Extension"
-	Branch    NodeType = "Branch"
-	Removed   NodeType = "Removed" // used to represent pathes which have been emptied
+	Branch NodeType = iota
+	Extension
+	Leaf
+	Removed
+	Unknown
 )
 
 // CheckKeyType checks what type of key we have

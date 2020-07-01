@@ -16,10 +16,11 @@
 package snapshot
 
 import (
+	"bytes"
+
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/multiformats/go-multihash"
 
-	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/eth"
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/ipfs/ipld"
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/postgres"
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/shared"
@@ -67,11 +68,11 @@ func (p *Publisher) PublishHeader(header *types.Header) (int64, error) {
 	return headerID, err
 }
 
-func (p *Publisher) PublishStateNode(meta eth.StateNodeModel, nodeVal []byte, headerID int64) (int64, error) {
+func (p *Publisher) PublishStateNode(node Node, headerID int64) (int64, error) {
 	var stateID int64
 	var stateKey string
-	if meta.StateKey != nullHash.String() {
-		stateKey = meta.StateKey
+	if !bytes.Equal(node.Key.Bytes(), nullHash.Bytes()) {
+		stateKey = node.Key.Hex()
 	}
 	tx, err := p.db.Beginx()
 	if err != nil {
@@ -87,21 +88,21 @@ func (p *Publisher) PublishStateNode(meta eth.StateNodeModel, nodeVal []byte, he
 			err = tx.Commit()
 		}
 	}()
-	stateCIDStr, err := shared.PublishRaw(tx, ipld.MEthStateTrie, multihash.KECCAK_256, nodeVal)
+	stateCIDStr, err := shared.PublishRaw(tx, ipld.MEthStateTrie, multihash.KECCAK_256, node.Value)
 	if err != nil {
 		return 0, err
 	}
 	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff) VALUES ($1, $2, $3, $4, $5, $6)
  									ON CONFLICT (header_id, state_path, diff) DO UPDATE SET (state_leaf_key, cid, node_type) = ($2, $3, $5, $6)
  									RETURNING id`,
-		headerID, stateKey, stateCIDStr, meta.Path, meta.NodeType, false).Scan(&stateID)
+		headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false).Scan(&stateID)
 	return stateID, err
 }
 
-func (p *Publisher) PublishStorageNode(meta eth.StorageNodeModel, nodeVal []byte, stateID int64) error {
+func (p *Publisher) PublishStorageNode(node Node, stateID int64) error {
 	var storageKey string
-	if meta.StorageKey != nullHash.String() {
-		storageKey = meta.StorageKey
+	if !bytes.Equal(node.Key.Bytes(), nullHash.Bytes()) {
+		storageKey = node.Key.Hex()
 	}
 	tx, err := p.db.Beginx()
 	if err != nil {
@@ -117,12 +118,12 @@ func (p *Publisher) PublishStorageNode(meta eth.StorageNodeModel, nodeVal []byte
 			err = tx.Commit()
 		}
 	}()
-	storageCIDStr, err := shared.PublishRaw(tx, ipld.MEthStorageTrie, multihash.KECCAK_256, nodeVal)
+	storageCIDStr, err := shared.PublishRaw(tx, ipld.MEthStorageTrie, multihash.KECCAK_256, node.Value)
 	if err != nil {
 		return err
 	}
 	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff) VALUES ($1, $2, $3, $4, $5, $6) 
  							  ON CONFLICT (state_id, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff) = ($2, $3, $5, $6)`,
-		stateID, storageKey, storageCIDStr, meta.Path, meta.NodeType, false)
+		stateID, storageKey, storageCIDStr, node.Path, node.NodeType, false)
 	return err
 }

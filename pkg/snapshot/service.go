@@ -17,6 +17,7 @@ package snapshot
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 
-	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/eth"
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/postgres"
 )
 
@@ -98,6 +98,11 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 		if err != nil {
 			return err
 		}
+		stateNode := Node{
+			NodeType: ty,
+			Path:     nodePath,
+			Value:    node,
+		}
 		switch ty {
 		case Leaf:
 			var account state.Account
@@ -108,18 +113,24 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 			valueNodePath := append(nodePath, partialPath...)
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
-			// publish state node
-			stateNode := eth.StateNodeModel{}
+			stateNode.Key = common.BytesToHash(leafKey)
+			stateID, err := s.ipfsPublisher.PublishStateNode(stateNode, headerID)
+			if err != nil {
+				return err
+			}
 			if err := s.storageSnapshot(account.Root, stateID); err != nil {
 				return fmt.Errorf("failed building eventual storage diffs for account %+v\r\nerror: %v", account, err)
 			}
 		case Extension, Branch:
-			// publish state node
-			stateNode := eth.StateNodeModel{}
+			stateNode.Key = common.BytesToHash([]byte{})
+			if _, err := s.ipfsPublisher.PublishStateNode(stateNode, headerID); err != nil {
+				return err
+			}
 		default:
-			return fmt.Errorf("unexpected node type %s", ty)
+			return errors.New("unexpected node type")
 		}
 	}
+	return nil
 }
 
 // buildStorageNodesEventual builds the storage diff node objects for a created account
@@ -157,18 +168,25 @@ func (s *Service) storageSnapshot(sr common.Hash, stateID int64) error {
 		if err != nil {
 			return err
 		}
+		storageNode := Node{
+			NodeType: ty,
+			Path:     nodePath,
+			Value:    node,
+		}
 		switch ty {
 		case Leaf:
 			partialPath := trie.CompactToHex(nodeElements[0].([]byte))
 			valueNodePath := append(nodePath, partialPath...)
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
-			storageNode := eth.StorageNodeModel{}
-
+			storageNode.Key = common.BytesToHash(leafKey)
 		case Extension, Branch:
-			storageNode := eth.StorageNodeModel{}
+			storageNode.Key = common.BytesToHash([]byte{})
 		default:
-			return fmt.Errorf("unexpected node type %s", ty)
+			return errors.New("unexpected node type")
+		}
+		if err := s.ipfsPublisher.PublishStorageNode(storageNode, stateID); err != nil {
+			return err
 		}
 	}
 	return nil
