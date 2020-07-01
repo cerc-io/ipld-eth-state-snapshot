@@ -16,15 +16,17 @@
 package cmd
 
 import (
-	"fmt"
-
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/snapshot"
 )
 
 // stateSnapshotCmd represents the stateSnapshot command
 var stateSnapshotCmd = &cobra.Command{
 	Use:   "stateSnapshot",
-	Short: "A brief description of your command",
+	Short: "Extract the entire Ethereum state from leveldb and publish into PG-IPFS",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
@@ -32,20 +34,40 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("stateSnapshot called")
+		subCommand = cmd.CalledAs()
+		logWithCommand = *logrus.WithField("SubCommand", subCommand)
+		stateSnapshot()
 	},
+}
+
+func stateSnapshot() {
+	snapConfig := snapshot.Config{}
+	snapConfig.Init()
+	snapshotService, err := snapshot.NewSnapshotService(snapConfig)
+	if err != nil {
+		logWithCommand.Fatal(err)
+	}
+	height := viper.Get("snapshot.blockHeight")
+	uHeight, ok := height.(uint64)
+	if !ok {
+		logWithCommand.Fatal("snapshot.blockHeight needs to be a uint")
+	}
+	hashStr := viper.GetString("snapshot.blockHash")
+	hash := common.HexToHash(hashStr)
+	if err := snapshotService.CreateSnapshot(uHeight, hash); err != nil {
+		logWithCommand.Fatal(err)
+	}
+	logWithCommand.Infof("state snapshot for height %d and hash %s is complete", uHeight, hashStr)
 }
 
 func init() {
 	rootCmd.AddCommand(stateSnapshotCmd)
 
-	// Here you will define your flags and configuration settings.
+	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to leveldb")
+	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
+	stateSnapshotCmd.PersistentFlags().String("block-hash", "", "blockhash to extract state at")
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// stateSnapshotCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// stateSnapshotCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
+	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
+	viper.BindPFlag("snapshot.blockHash", stateSnapshotCmd.PersistentFlags().Lookup("block-hash"))
 }
