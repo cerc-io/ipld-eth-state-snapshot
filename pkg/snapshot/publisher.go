@@ -58,13 +58,14 @@ func (p *Publisher) PublishHeader(header *types.Header) (int64, error) {
 	if err := shared.PublishIPLD(tx, headerNode); err != nil {
 		return 0, err
 	}
+	mhKey, _ := shared.MultihashKeyFromCIDString(headerNode.Cid().String())
 	var headerID int64
-	err = tx.QueryRowx(`INSERT INTO eth.header_cids (block_number, block_hash, parent_hash, cid, td, node_id, reward, state_root, tx_root, receipt_root, uncle_root, bloom, timestamp, times_validated)
- 								VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	err = tx.QueryRowx(`INSERT INTO eth.header_cids (block_number, block_hash, parent_hash, cid, td, node_id, reward, state_root, tx_root, receipt_root, uncle_root, bloom, timestamp, mh_key, times_validated)
+ 								VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
  								ON CONFLICT (block_number, block_hash) DO UPDATE SET block_number = header_cids.block_number
  								RETURNING id`,
-		header.Number.Uint64(), header.Hash().Hex(), header.ParentHash.Hex(), headerNode.Cid(), "0", p.db.NodeID, "0", header.Root.Hex(), header.TxHash.Hex(),
-		header.ReceiptHash.Hex(), header.UncleHash.Hex(), header.Bloom.Bytes(), header.Time, 0).Scan(&headerID)
+		header.Number.Uint64(), header.Hash().Hex(), header.ParentHash.Hex(), headerNode.Cid().String(), "0", p.db.NodeID, "0", header.Root.Hex(), header.TxHash.Hex(),
+		header.ReceiptHash.Hex(), header.UncleHash.Hex(), header.Bloom.Bytes(), header.Time, mhKey, 0).Scan(&headerID)
 	return headerID, err
 }
 
@@ -92,10 +93,11 @@ func (p *Publisher) PublishStateNode(node Node, headerID int64) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff) VALUES ($1, $2, $3, $4, $5, $6)
- 									ON CONFLICT (header_id, state_path, diff) DO UPDATE SET (state_leaf_key, cid, node_type) = ($2, $3, $5, $6)
+	mhKey, _ := shared.MultihashKeyFromCIDString(stateCIDStr)
+	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
+ 									ON CONFLICT (header_id, state_path, diff) DO UPDATE SET (state_leaf_key, cid, node_type, mh_key) = ($2, $3, $5, $7)
  									RETURNING id`,
-		headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false).Scan(&stateID)
+		headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false, mhKey).Scan(&stateID)
 	return stateID, err
 }
 
@@ -122,8 +124,9 @@ func (p *Publisher) PublishStorageNode(node Node, stateID int64) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff) VALUES ($1, $2, $3, $4, $5, $6) 
- 							  ON CONFLICT (state_id, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff) = ($2, $3, $5, $6)`,
-		stateID, storageKey, storageCIDStr, node.Path, node.NodeType, false)
+	mhKey, _ := shared.MultihashKeyFromCIDString(storageCIDStr)
+	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7) 
+ 							  ON CONFLICT (state_id, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)`,
+		stateID, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
 	return err
 }
