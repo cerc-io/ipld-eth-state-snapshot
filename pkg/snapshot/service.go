@@ -20,12 +20,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 
@@ -49,7 +50,7 @@ func NewSnapshotService(con Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	edb, err := rawdb.NewLevelDBDatabase(con.LevelDBPath, 256, 0, "")
+	edb, err := rawdb.NewLevelDBDatabase(con.LevelDBPath, 256, 1024, "eth-pg-ipfs-state-snapshot")
 	if err != nil {
 		return nil, err
 	}
@@ -60,9 +61,11 @@ func NewSnapshotService(con Config) (*Service, error) {
 	}, nil
 }
 
-func (s *Service) CreateSnapshot(height uint64, hash common.Hash) error {
+func (s *Service) CreateSnapshot(height uint64) error {
 	// extract header from lvldb and publish to PG-IPFS
 	// hold onto the headerID so that we can link the state nodes to this header
+	logrus.Infof("Creating snapshot at height %d", height)
+	hash := rawdb.ReadCanonicalHash(s.ethDB, height)
 	header := rawdb.ReadHeader(s.ethDB, hash, height)
 	headerID, err := s.ipfsPublisher.PublishHeader(header)
 	if err != nil {
@@ -105,6 +108,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 		}
 		switch ty {
 		case Leaf:
+			// if the node is a leaf, decode the account and if publish the associated storage trie nodes if there are any
 			var account state.Account
 			if err := rlp.DecodeBytes(nodeElements[1].([]byte), &account); err != nil {
 				return fmt.Errorf("error decoding account for leaf node at path %x nerror: %v", nodePath, err)
@@ -119,7 +123,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 				return err
 			}
 			if err := s.storageSnapshot(account.Root, stateID); err != nil {
-				return fmt.Errorf("failed building eventual storage diffs for account %+v\r\nerror: %v", account, err)
+				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %v", account, err)
 			}
 		case Extension, Branch:
 			stateNode.Key = common.BytesToHash([]byte{})
@@ -133,16 +137,12 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 	return nil
 }
 
-// buildStorageNodesEventual builds the storage diff node objects for a created account
-// i.e. it returns all the storage nodes at this state, since there is no previous state
 func (s *Service) storageSnapshot(sr common.Hash, stateID int64) error {
 	if bytes.Equal(sr.Bytes(), emptyContractRoot.Bytes()) {
 		return nil
 	}
-	log.Debug("Storage Root For Eventual Diff", "root", sr.Hex())
 	sTrie, err := s.stateDB.OpenTrie(sr)
 	if err != nil {
-		log.Info("error in build storage diff eventual", "error", err)
 		return err
 	}
 	it := sTrie.NodeIterator(make([]byte, 0))

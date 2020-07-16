@@ -16,7 +16,6 @@
 package cmd
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -27,12 +26,9 @@ import (
 var stateSnapshotCmd = &cobra.Command{
 	Use:   "stateSnapshot",
 	Short: "Extract the entire Ethereum state from leveldb and publish into PG-IPFS",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Long: `Usage
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+./eth-pg-ipfs-state-snapshot stateSnapshot --config={path to toml config file}`,
 	Run: func(cmd *cobra.Command, args []string) {
 		subCommand = cmd.CalledAs()
 		logWithCommand = *logrus.WithField("SubCommand", subCommand)
@@ -47,17 +43,11 @@ func stateSnapshot() {
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
-	height := viper.Get("snapshot.blockHeight")
-	uHeight, ok := height.(uint64)
-	if !ok {
-		logWithCommand.Fatal("snapshot.blockHeight needs to be a uint")
-	}
-	hashStr := viper.GetString("snapshot.blockHash")
-	hash := common.HexToHash(hashStr)
-	if err := snapshotService.CreateSnapshot(uHeight, hash); err != nil {
+	height := uint64(viper.GetInt64("snapshot.blockHeight"))
+	if err := snapshotService.CreateSnapshot(height); err != nil {
 		logWithCommand.Fatal(err)
 	}
-	logWithCommand.Infof("state snapshot for height %d and hash %s is complete", uHeight, hashStr)
+	logWithCommand.Infof("state snapshot at height %d is complete", height)
 }
 
 func init() {
@@ -65,9 +55,7 @@ func init() {
 
 	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to leveldb")
 	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
-	stateSnapshotCmd.PersistentFlags().String("block-hash", "", "blockhash to extract state at")
 
 	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
 	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
-	viper.BindPFlag("snapshot.blockHash", stateSnapshotCmd.PersistentFlags().Lookup("block-hash"))
 }
