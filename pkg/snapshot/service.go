@@ -20,8 +20,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -29,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/sirupsen/logrus"
 
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/postgres"
 )
@@ -59,6 +58,32 @@ func NewSnapshotService(con Config) (*Service, error) {
 		stateDB:       state.NewDatabase(edb),
 		ipfsPublisher: NewPublisher(pgdb),
 	}, nil
+}
+
+func (s *Service) CreateLatestSnapshot() error {
+	// extract header from lvldb and publish to PG-IPFS
+	// hold onto the headerID so that we can link the state nodes to this header
+	logrus.Info("Creating snapshot at head")
+	hash := rawdb.ReadHeadHeaderHash(s.ethDB)
+	height := rawdb.ReadHeaderNumber(s.ethDB, hash)
+	if height == nil {
+		return fmt.Errorf("unable to read header height for header hash %s", hash.String())
+	}
+	header := rawdb.ReadHeader(s.ethDB, hash, *height)
+	if header == nil {
+		return fmt.Errorf("unable to read canonical header at height %d", height)
+	}
+	logrus.Infof("head hash: %s head height: %d", hash.Hex(), *height)
+	headerID, err := s.ipfsPublisher.PublishHeader(header)
+	if err != nil {
+		return err
+	}
+	t, err := s.stateDB.OpenTrie(header.Root)
+	if err != nil {
+		return err
+	}
+	trieDB := s.stateDB.TrieDB()
+	return s.createSnapshot(t.NodeIterator([]byte{}), trieDB, headerID)
 }
 
 func (s *Service) CreateSnapshot(height uint64) error {

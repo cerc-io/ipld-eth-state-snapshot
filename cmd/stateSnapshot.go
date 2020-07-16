@@ -43,9 +43,16 @@ func stateSnapshot() {
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
-	height := uint64(viper.GetInt64("snapshot.blockHeight"))
-	if err := snapshotService.CreateSnapshot(height); err != nil {
-		logWithCommand.Fatal(err)
+	height := viper.GetInt64("snapshot.blockHeight")
+	if height < 0 {
+		if err := snapshotService.CreateLatestSnapshot(); err != nil {
+			logWithCommand.Fatal(err)
+		}
+	} else {
+		uHeight := uint64(height)
+		if err := snapshotService.CreateSnapshot(uHeight); err != nil {
+			logWithCommand.Fatal(err)
+		}
 	}
 	logWithCommand.Infof("state snapshot at height %d is complete", height)
 }
