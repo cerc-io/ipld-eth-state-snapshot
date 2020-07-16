@@ -67,6 +67,9 @@ func (s *Service) CreateSnapshot(height uint64) error {
 	logrus.Infof("Creating snapshot at height %d", height)
 	hash := rawdb.ReadCanonicalHash(s.ethDB, height)
 	header := rawdb.ReadHeader(s.ethDB, hash, height)
+	if header == nil {
+		return fmt.Errorf("unable to read canonical header at height %d", height)
+	}
 	headerID, err := s.ipfsPublisher.PublishHeader(header)
 	if err != nil {
 		return err
