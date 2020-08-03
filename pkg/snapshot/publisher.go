@@ -19,6 +19,8 @@ import (
 	"bytes"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ipfs/go-ipfs-blockstore"
+	"github.com/ipfs/go-ipfs-ds-help"
 	"github.com/multiformats/go-multihash"
 
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/ipfs/ipld"
@@ -36,6 +38,7 @@ func NewPublisher(db *postgres.DB) *Publisher {
 	}
 }
 
+// PublishHeader writes the header to the ipfs backing pg datastore and adds secondary indexes in the header_cids table
 func (p *Publisher) PublishHeader(header *types.Header) (int64, error) {
 	headerNode, err := ipld.NewEthHeader(header)
 	if err != nil {
@@ -69,6 +72,7 @@ func (p *Publisher) PublishHeader(header *types.Header) (int64, error) {
 	return headerID, err
 }
 
+// PublishStateNode writes the state node to the ipfs backing datastore and adds secondary indexes in the state_cids table
 func (p *Publisher) PublishStateNode(node Node, headerID int64) (int64, error) {
 	var stateID int64
 	var stateKey string
@@ -101,6 +105,7 @@ func (p *Publisher) PublishStateNode(node Node, headerID int64) (int64, error) {
 	return stateID, err
 }
 
+// PublishStorageNode writes the storage node to the ipfs backing pg datastore and adds secondary indexes in the storage_cids table
 func (p *Publisher) PublishStorageNode(node Node, stateID int64) error {
 	var storageKey string
 	if !bytes.Equal(node.Key.Bytes(), nullHash.Bytes()) {
@@ -128,5 +133,22 @@ func (p *Publisher) PublishStorageNode(node Node, stateID int64) error {
 	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7) 
  							  ON CONFLICT (state_id, storage_path, diff) DO UPDATE SET (storage_leaf_key, cid, node_type, mh_key) = ($2, $3, $5, $7)`,
 		stateID, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
+	return err
+}
+
+// PublishCode writes code to the ipfs backing pg datastore
+func (p *Publisher) PublishCode(code []byte) error {
+	// no codec for code, doesn't matter though since blockstore key is multihash-derived
+	return p.publishRaw(ipld.MEthStorageTrie, multihash.KECCAK_256, code)
+}
+
+func (p *Publisher) publishRaw(codec, mh uint64, raw []byte) error {
+	c, err := ipld.RawdataToCid(codec, raw, mh)
+	if err != nil {
+		return err
+	}
+	dbKey := dshelp.MultihashToDsKey(c.Hash())
+	prefixedKey := blockstore.BlockPrefix.String() + dbKey.String()
+	_, err = p.db.Exec(`INSERT INTO public.blocks (key, data) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, prefixedKey, raw)
 	return err
 }

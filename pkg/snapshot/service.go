@@ -35,6 +35,7 @@ import (
 var (
 	nullHash          = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
 	emptyNode, _      = rlp.EncodeToBytes([]byte{})
+	emptyCodeHash     = crypto.Keccak256([]byte{})
 	emptyContractRoot = crypto.Keccak256Hash(emptyNode)
 )
 
@@ -49,7 +50,7 @@ func NewSnapshotService(con Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	edb, err := rawdb.NewLevelDBDatabase(con.LevelDBPath, 256, 1024, "eth-pg-ipfs-state-snapshot")
+	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot")
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +137,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 		}
 		switch ty {
 		case Leaf:
-			// if the node is a leaf, decode the account and if publish the associated storage trie nodes if there are any
+			// if the node is a leaf, decode the account and publish the associated storage trie nodes if there are any
 			var account state.Account
 			if err := rlp.DecodeBytes(nodeElements[1].([]byte), &account); err != nil {
 				return fmt.Errorf("error decoding account for leaf node at path %x nerror: %v", nodePath, err)
@@ -150,6 +151,16 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 			if err != nil {
 				return err
 			}
+			// publish any non-nil code referenced by codehash
+			if !bytes.Equal(account.CodeHash, emptyCodeHash) {
+				codeBytes, err := s.ethDB.Get(account.CodeHash)
+				if err != nil {
+					return err
+				}
+				if err := s.ipfsPublisher.PublishCode(codeBytes); err != nil {
+					return err
+				}
+			}
 			if err := s.storageSnapshot(account.Root, stateID); err != nil {
 				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %v", account, err)
 			}
@@ -162,7 +173,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 			return errors.New("unexpected node type")
 		}
 	}
-	return nil
+	return it.Error()
 }
 
 func (s *Service) storageSnapshot(sr common.Hash, stateID int64) error {
@@ -217,5 +228,5 @@ func (s *Service) storageSnapshot(sr common.Hash, stateID int64) error {
 			return err
 		}
 	}
-	return nil
+	return it.Error()
 }

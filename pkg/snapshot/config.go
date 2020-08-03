@@ -23,17 +23,19 @@ import (
 )
 
 const (
-	LVL_DB_PATH       = "LVL_DB_PATH"
-	ETH_NODE_ID       = "ETH_NODE_ID"
+	ANCIENT_DB_PATH   = "ANCIENT_DB_PATH"
 	ETH_CLIENT_NAME   = "ETH_CLIENT_NAME"
 	ETH_GENESIS_BLOCK = "ETH_GENESIS_BLOCK"
 	ETH_NETWORK_ID    = "ETH_NETWORK_ID"
+	ETH_NODE_ID       = "ETH_NODE_ID"
+	LVL_DB_PATH       = "LVL_DB_PATH"
 )
 
 type Config struct {
-	LevelDBPath string
-	Node        core.Node
-	DBConfig    config.Database
+	LevelDBPath   string
+	AncientDBPath string
+	Node          core.Node
+	DBConfig      config.Database
 }
 
 func (c *Config) Init() {
@@ -43,6 +45,7 @@ func (c *Config) Init() {
 	viper.BindEnv("ethereum.clientName", ETH_CLIENT_NAME)
 	viper.BindEnv("ethereum.genesisBlock", ETH_GENESIS_BLOCK)
 	viper.BindEnv("ethereum.networkID", ETH_NETWORK_ID)
+	viper.BindEnv("leveldb.ancient", ANCIENT_DB_PATH)
 
 	c.Node = core.Node{
 		ID:           viper.GetString("ethereum.nodeID"),
@@ -51,4 +54,5 @@ func (c *Config) Init() {
 		NetworkID:    viper.GetString("ethereum.networkID"),
 	}
 	c.LevelDBPath = viper.GetString("leveldb.path")
+	c.AncientDBPath = viper.GetString("leveldb.ancient")
 }
