@@ -50,7 +50,7 @@ func NewSnapshotService(con Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	edb, err := rawdb.NewLevelDBDatabase(con.LevelDBPath, 256, 1024, "eth-pg-ipfs-state-snapshot")
+	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot")
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 			return errors.New("unexpected node type")
 		}
 	}
-	return nil
+	return it.Error()
 }
 
 func (s *Service) storageSnapshot(sr common.Hash, stateID int64) error {
@@ -228,5 +228,5 @@ func (s *Service) storageSnapshot(sr common.Hash, stateID int64) error {
 			return err
 		}
 	}
-	return nil
+	return it.Error()
 }

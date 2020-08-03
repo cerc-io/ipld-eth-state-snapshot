@@ -60,9 +60,11 @@ func stateSnapshot() {
 func init() {
 	rootCmd.AddCommand(stateSnapshotCmd)
 
-	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to leveldb")
+	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to primary datastore")
+	stateSnapshotCmd.PersistentFlags().String("ancient-path", "", "path to ancient datastore")
 	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
 
 	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
+	viper.BindPFlag("leveldb.ancient", stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
 	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
 }
