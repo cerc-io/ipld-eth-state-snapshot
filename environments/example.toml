@@ -6,6 +6,7 @@
 
 [leveldb]
     path = "/Users/user/Library/Ethereum/geth/chaindata"
+    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
 
 [snapshot]
-    blockHeight = 0
+    blockHeight = -1

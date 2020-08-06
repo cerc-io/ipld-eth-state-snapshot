@@ -99,7 +99,7 @@ func (p *Publisher) PublishStateNode(node Node, headerID int64) (int64, error) {
 	}
 	mhKey, _ := shared.MultihashKeyFromCIDString(stateCIDStr)
 	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
- 									ON CONFLICT (header_id, state_path, diff) DO UPDATE SET (state_leaf_key, cid, node_type, mh_key) = ($2, $3, $5, $7)
+ 									ON CONFLICT (header_id, state_path) DO UPDATE SET state_path = state_cids.state_path
  									RETURNING id`,
 		headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false, mhKey).Scan(&stateID)
 	return stateID, err
@@ -131,7 +131,7 @@ func (p *Publisher) PublishStorageNode(node Node, stateID int64) error {
 	}
 	mhKey, _ := shared.MultihashKeyFromCIDString(storageCIDStr)
 	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7) 
- 							  ON CONFLICT (state_id, storage_path, diff) DO UPDATE SET (storage_leaf_key, cid, node_type, mh_key) = ($2, $3, $5, $7)`,
+ 							  ON CONFLICT (state_id, storage_path) DO NOTHING`,
 		stateID, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
 	return err
 }
