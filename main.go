@@ -15,8 +15,15 @@
 
 package main
 
-import "github.com/vulcanize/eth-pg-ipfs-state-snapshot/cmd"
+import (
+	"github.com/sirupsen/logrus"
+
+	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/cmd"
+)
 
 func main() {
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
 	cmd.Execute()
 }
