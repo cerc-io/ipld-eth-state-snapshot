@@ -18,8 +18,9 @@ Config format:
   user     = "postgres"
 
 [leveldb]
-    path = "/Users/user/Library/Ethereum/geth/chaindata"
+   path = "/Users/user/Library/Ethereum/geth/chaindata"
+   ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
 
 [snapshot]
-    blockHeight = 0
+   blockHeight = 0
 ```
