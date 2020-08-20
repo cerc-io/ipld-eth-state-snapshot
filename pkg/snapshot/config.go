@@ -31,14 +31,14 @@ const (
 	LVL_DB_PATH       = "LVL_DB_PATH"
 )
 
-type Config struct {
+type ServiceConfig struct {
 	LevelDBPath   string
 	AncientDBPath string
 	Node          core.Node
 	DBConfig      config.Database
 }
 
-func (c *Config) Init() {
+func (c *ServiceConfig) Init() {
 	c.DBConfig.Init()
 	viper.BindEnv("leveldb.path", LVL_DB_PATH)
 	viper.BindEnv("ethereum.nodeID", ETH_NODE_ID)

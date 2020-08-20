@@ -37,20 +37,21 @@ var stateSnapshotCmd = &cobra.Command{
 }
 
 func stateSnapshot() {
-	snapConfig := snapshot.Config{}
-	snapConfig.Init()
-	snapshotService, err := snapshot.NewSnapshotService(snapConfig)
+	serviceConfig := snapshot.ServiceConfig{}
+	serviceConfig.Init()
+	snapshotService, err := snapshot.NewSnapshotService(serviceConfig)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
 	height := viper.GetInt64("snapshot.blockHeight")
+	doAsync := viper.GetBool("snapshot.async")
 	if height < 0 {
-		if err := snapshotService.CreateLatestSnapshot(); err != nil {
+		if err := snapshotService.CreateLatestSnapshot(doAsync); err != nil {
 			logWithCommand.Fatal(err)
 		}
 	} else {
-		uHeight := uint64(height)
-		if err := snapshotService.CreateSnapshot(uHeight); err != nil {
+		params := snapshot.SnapshotParams{Height: uint64(height), Async: doAsync}
+		if err := snapshotService.CreateSnapshot(params); err != nil {
 			logWithCommand.Fatal(err)
 		}
 	}
@@ -63,8 +64,10 @@ func init() {
 	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to primary datastore")
 	stateSnapshotCmd.PersistentFlags().String("ancient-path", "", "path to ancient datastore")
 	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
+	stateSnapshotCmd.PersistentFlags().Bool("async", false, "use the async iterator")
 
 	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
 	viper.BindPFlag("leveldb.ancient", stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
 	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
+	viper.BindPFlag("snapshot.async", stateSnapshotCmd.PersistentFlags().Lookup("async"))
 }
