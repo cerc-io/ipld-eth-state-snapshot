@@ -12,13 +12,15 @@ Config format:
 
 ```toml
 [database]
-  name     = "vulcanize_public"
-  hostname = "localhost"
-  port     = 5432
-  user     = "postgres"
+    name     = "vulcanize_public"
+    hostname = "localhost"
+    port     = 5432
+    user     = "postgres"
 
 [leveldb]
     path = "/Users/user/Library/Ethereum/geth/chaindata"
+    # path for geth's "freezer" archive
+    ancient = "/Users/user/Library/Ethereum/geth/chaindata"
 
 [snapshot]
     blockHeight = 0
