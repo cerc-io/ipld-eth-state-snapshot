@@ -24,4 +24,5 @@ Config format:
 
 [snapshot]
     blockHeight = 0
+    divideDepth = 1
 ```
