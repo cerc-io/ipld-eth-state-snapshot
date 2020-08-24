@@ -108,7 +108,6 @@ func (s *Service) CreateLatestSnapshot(params SnapshotParams) error {
 	return s.CreateSnapshot(params)
 }
 
-// cache the elements
 type nodeResult struct {
 	node Node
 	elements []interface{}
