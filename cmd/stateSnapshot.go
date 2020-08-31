@@ -44,8 +44,8 @@ func stateSnapshot() {
 		logWithCommand.Fatal(err)
 	}
 	height := viper.GetInt64("snapshot.blockHeight")
-	divideDepth := viper.GetInt("snapshot.divideDepth")
-	params := snapshot.SnapshotParams{DivideDepth: divideDepth}
+	workers := viper.GetUint("snapshot.workers")
+	params := snapshot.SnapshotParams{Workers: workers}
 	if height < 0 {
 		if err := snapshotService.CreateLatestSnapshot(params); err != nil {
 			logWithCommand.Fatal(err)
@@ -65,10 +65,10 @@ func init() {
 	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to primary datastore")
 	stateSnapshotCmd.PersistentFlags().String("ancient-path", "", "path to ancient datastore")
 	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
-	stateSnapshotCmd.PersistentFlags().Int("divide-depth", 0, "trie depth to divide concurrent work at")
+	stateSnapshotCmd.PersistentFlags().Int("workers", 0, "number of concurrent workers to use")
 
 	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
 	viper.BindPFlag("leveldb.ancient", stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
 	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
-	viper.BindPFlag("snapshot.divideDepth", stateSnapshotCmd.PersistentFlags().Lookup("divide-depth"))
+	viper.BindPFlag("snapshot.workers", stateSnapshotCmd.PersistentFlags().Lookup("workers"))
 }

@@ -39,7 +39,6 @@ var (
 	emptyNode, _      = rlp.EncodeToBytes([]byte{})
 	emptyCodeHash     = crypto.Keccak256([]byte{})
 	emptyContractRoot = crypto.Keccak256Hash(emptyNode)
-	spawnDepth		  = 2
 )
 
 type Service struct {
@@ -67,7 +66,7 @@ func NewSnapshotService(con ServiceConfig) (*Service, error) {
 
 type SnapshotParams struct {
 	Height uint64
-	DivideDepth int
+	Workers uint
 }
 
 func (s *Service) CreateSnapshot(params SnapshotParams) error {
@@ -88,8 +87,8 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	if err != nil {
 		return err
 	}
-	if params.DivideDepth > 0 {
-		return s.createSnapshotAsync(t, headerID, params.DivideDepth)
+	if params.Workers > 0 {
+		return s.createSnapshotAsync(t, headerID, params.Workers)
 	} else {
 		return s.createSnapshot(t.NodeIterator(nil), headerID)
 	}
@@ -200,12 +199,12 @@ func (s *Service) createSnapshot(it iter.NodeIterator, headerID int64) error {
 }
 
 // Full-trie snapshot using goroutines
-func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, depth int) error {
+func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers uint) error {
 	errors := make(chan error)
 	finished := make(chan bool)
 	var wg sync.WaitGroup
 
-	iter.VisitSubtries(tree, depth, func (it iter.NodeIterator) {
+	iter.VisitSubtries(tree, workers, func (it iter.NodeIterator) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
