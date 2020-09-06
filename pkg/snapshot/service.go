@@ -112,7 +112,7 @@ type nodeResult struct {
 	elements []interface{}
 }
 
-func resolveNode(it iter.NodeIterator, trieDB *trie.Database) (*nodeResult, error) {
+func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, error) {
 	nodePath := make([]byte, len(it.Path()))
 	copy(nodePath, it.Path())
 	node, err := trieDB.Node(it.Hash())
@@ -137,7 +137,7 @@ func resolveNode(it iter.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 	}, nil
 }
 
-func (s *Service) processNode(it iter.NodeIterator, headerID int64) error {
+func (s *Service) processNode(it trie.NodeIterator, headerID int64) error {
 	if it.Leaf() { // "leaf" nodes are actually "value" nodes, whose parents are the actual leaves
 		return nil
 	}
@@ -189,7 +189,7 @@ func (s *Service) processNode(it iter.NodeIterator, headerID int64) error {
 	return nil
 }
 
-func (s *Service) createSnapshot(it iter.NodeIterator, headerID int64) error {
+func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
 	for it.Next(true) {
 		if err := s.processNode(it, headerID); err != nil {
 			return err
@@ -204,7 +204,9 @@ func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers u
 	finished := make(chan bool)
 	var wg sync.WaitGroup
 
-	iter.VisitSubtries(tree, workers, func (it iter.NodeIterator) {
+	iters := iter.SubtrieIterators(tree, workers)
+
+	for _, it := range iters {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -212,7 +214,7 @@ func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers u
 				errors <- err
 			}
 		}()
-	})
+	}
 
 	go func() {
 		defer close(finished)
