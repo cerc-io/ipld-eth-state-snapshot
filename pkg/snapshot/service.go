@@ -31,7 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/postgres"
-	iter "github.com/vulcanize/go-eth-state-node-iterator/pkg/iterator"
+	iter "github.com/vulcanize/go-eth-state-node-iterator/iterator"
 )
 
 var (
@@ -201,12 +201,8 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
 // Full-trie snapshot using goroutines
 func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers uint) error {
 	errors := make(chan error)
-	finished := make(chan bool)
 	var wg sync.WaitGroup
-
-	iters := iter.SubtrieIterators(tree, workers)
-
-	for _, it := range iters {
+	for _, it := range iter.SubtrieIterators(tree, workers) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -215,15 +211,12 @@ func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers u
 			}
 		}()
 	}
-
 	go func() {
-		defer close(finished)
+		defer close(errors)
 		wg.Wait()
 	}()
 
 	select {
-	case <-finished:
-		break
 	case err := <-errors:
 		return err
 	}
