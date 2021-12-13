@@ -98,12 +98,7 @@ func (s *Service) CreateLatestSnapshot() error {
 	}
 
 	trieDB := s.stateDB.TrieDB()
-	err = s.createSnapshot(t.NodeIterator([]byte{}), trieDB, headerID)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return s.createSnapshot(t.NodeIterator([]byte{}), trieDB, headerID)
 }
 
 func (s *Service) CreateSnapshot(height uint64) error {
@@ -127,12 +122,7 @@ func (s *Service) CreateSnapshot(height uint64) error {
 	}
 
 	trieDB := s.stateDB.TrieDB()
-	err = s.createSnapshot(t.NodeIterator([]byte{}), trieDB, headerID)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return s.createSnapshot(t.NodeIterator([]byte{}), trieDB, headerID)
 }
 
 func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, headerID int64) error {
