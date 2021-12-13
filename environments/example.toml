@@ -1,12 +1,13 @@
 [database]
-  name     = "vulcanize_public"
-  hostname = "localhost"
-  port     = 5432
-  user     = "postgres"
+    name     = "vulcanize_testing"
+    hostname = "localhost"
+    port     = 8077
+    user     = "vdbm"
+    password = "password"
 
 [leveldb]
-    path = "/Users/user/Library/Ethereum/geth/chaindata"
-    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
+    path = "/Users/arijitdas/Library/Ethereum/rinkeby/geth/chaindata"
+    ancient = "/Users/arijitdas/Library/Ethereum/rinkeby/geth/chaindata/ancient"
 
 [snapshot]
-    blockHeight = -1
+    blockHeight = 58176
