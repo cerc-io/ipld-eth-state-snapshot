@@ -16,38 +16,40 @@
 package snapshot
 
 import (
-	"github.com/ethereum/go-ethereum/statediff/indexer/node"
+	ethNode "github.com/ethereum/go-ethereum/statediff/indexer/node"
 	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
 	"github.com/spf13/viper"
 )
 
 const (
-	ancientDbPath   = "ANCIENT_DB_PATH"
+	ancientDBPath   = "ANCIENT_DB_PATH"
 	ethClientName   = "ETH_CLIENT_NAME"
 	ethGenesisBlock = "ETH_GENESIS_BLOCK"
-	ethNetworkId    = "ETH_NETWORK_ID"
-	ethNodeId       = "ETH_NODE_ID"
-	lvlDbPath       = "LVL_DB_PATH"
+	ethNetworkID    = "ETH_NETWORK_ID"
+	ethNodeID       = "ETH_NODE_ID"
+	lvlDBPath       = "LVL_DB_PATH"
 )
 
+// Config is config parameters for DB.
 type Config struct {
 	LevelDBPath   string
 	AncientDBPath string
-	Node          node.Info
+	Node          ethNode.Info
 	connectionURI string
 	DBConfig      postgres.ConnectionConfig
 }
 
+// Init Initialises config
 func (c *Config) Init() {
 	c.dbInit()
-	viper.BindEnv("leveldb.path", lvlDbPath)
-	viper.BindEnv("ethereum.nodeID", ethNodeId)
+	viper.BindEnv("leveldb.path", lvlDBPath)
+	viper.BindEnv("ethereum.nodeID", ethNodeID)
 	viper.BindEnv("ethereum.clientName", ethClientName)
 	viper.BindEnv("ethereum.genesisBlock", ethGenesisBlock)
-	viper.BindEnv("ethereum.networkID", ethNetworkId)
-	viper.BindEnv("leveldb.ancient", ancientDbPath)
+	viper.BindEnv("ethereum.networkID", ethNetworkID)
+	viper.BindEnv("leveldb.ancient", ancientDBPath)
 
-	c.Node = node.Info{
+	c.Node = ethNode.Info{
 		ID:           viper.GetString("ethereum.nodeID"),
 		ClientName:   viper.GetString("ethereum.clientName"),
 		GenesisBlock: viper.GetString("ethereum.genesisBlock"),

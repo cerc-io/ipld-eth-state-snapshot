@@ -29,11 +29,13 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
 )
 
+// Publisher is wrapper around DB.
 type Publisher struct {
 	db            *postgres.DB
 	currBatchSize uint
 }
 
+// NewPublisher creates Publisher
 func NewPublisher(db *postgres.DB) *Publisher {
 	return &Publisher{
 		db:            db,
@@ -81,11 +83,11 @@ func (p *Publisher) PublishHeader(header *types.Header) (int64, error) {
 }
 
 // PublishStateNode writes the state node to the ipfs backing datastore and adds secondary indexes in the state_cids table
-func (p *Publisher) PublishStateNode(node Node, headerID int64, tx *sqlx.Tx) (int64, error) {
+func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (int64, error) {
 	var stateID int64
 	var stateKey string
-	if !bytes.Equal(node.Key.Bytes(), nullHash.Bytes()) {
-		stateKey = node.Key.Hex()
+	if !bytes.Equal(node.key.Bytes(), nullHash.Bytes()) {
+		stateKey = node.key.Hex()
 	}
 
 	defer func() {
@@ -95,7 +97,7 @@ func (p *Publisher) PublishStateNode(node Node, headerID int64, tx *sqlx.Tx) (in
 		}
 	}()
 
-	stateCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStateTrie, multihash.KECCAK_256, node.Value)
+	stateCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStateTrie, multihash.KECCAK_256, node.value)
 	if err != nil {
 		return 0, err
 	}
@@ -103,17 +105,17 @@ func (p *Publisher) PublishStateNode(node Node, headerID int64, tx *sqlx.Tx) (in
 	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
  									ON CONFLICT (header_id, state_path) DO UPDATE SET (state_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)
  									RETURNING id`,
-		headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false, mhKey).Scan(&stateID)
+		headerID, stateKey, stateCIDStr, node.path, node.nodeType, false, mhKey).Scan(&stateID)
 
 	p.currBatchSize += 2
 	return stateID, err
 }
 
 // PublishStorageNode writes the storage node to the ipfs backing pg datastore and adds secondary indexes in the storage_cids table
-func (p *Publisher) PublishStorageNode(node Node, stateID int64, tx *sqlx.Tx) error {
+func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) error {
 	var storageKey string
-	if !bytes.Equal(node.Key.Bytes(), nullHash.Bytes()) {
-		storageKey = node.Key.Hex()
+	if !bytes.Equal(node.key.Bytes(), nullHash.Bytes()) {
+		storageKey = node.key.Hex()
 	}
 
 	defer func() {
@@ -123,14 +125,14 @@ func (p *Publisher) PublishStorageNode(node Node, stateID int64, tx *sqlx.Tx) er
 		}
 	}()
 
-	storageCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStorageTrie, multihash.KECCAK_256, node.Value)
+	storageCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStorageTrie, multihash.KECCAK_256, node.value)
 	if err != nil {
 		return err
 	}
 
 	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
                               	ON CONFLICT (state_id, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)`,
-		stateID, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
+		stateID, storageKey, storageCIDStr, node.path, node.nodeType, false, mhKey)
 	if err != nil {
 		return err
 	}

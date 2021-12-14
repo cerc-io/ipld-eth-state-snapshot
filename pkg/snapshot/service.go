@@ -27,11 +27,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
-
-	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
 )
 
 var (
@@ -43,6 +42,8 @@ var (
 	defaultBatchSize = uint(100)
 )
 
+// Service holds ethDB and stateDB to read data from lvldb and Publisher
+// to publish trie in postgres DB.
 type Service struct {
 	ethDB         ethdb.Database
 	stateDB       state.Database
@@ -50,7 +51,8 @@ type Service struct {
 	maxBatchSize  uint
 }
 
-func NewSnapshotService(con Config) (*Service, error) {
+// NewSnapshotService creates Service.
+func NewSnapshotService(con *Config) (*Service, error) {
 	pgDB, err := postgres.NewDB(con.connectionURI, con.DBConfig, con.Node)
 	if err != nil {
 		return nil, err
@@ -69,6 +71,7 @@ func NewSnapshotService(con Config) (*Service, error) {
 	}, nil
 }
 
+// CreateLatestSnapshot creates snapshot for the latest block.
 func (s *Service) CreateLatestSnapshot() error {
 	// extract header from lvldb and publish to PG-IPFS
 	// hold onto the headerID so that we can link the state nodes to this header
@@ -101,6 +104,7 @@ func (s *Service) CreateLatestSnapshot() error {
 	return s.createSnapshot(t.NodeIterator([]byte{}), trieDB, headerID)
 }
 
+// CreateSnapshot creates snapshot for given block height.
 func (s *Service) CreateSnapshot(height uint64) error {
 	// extract header from lvldb and publish to PG-IPFS
 	// hold onto the headerID so that we can link the state nodes to this header
@@ -153,17 +157,17 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 		copy(nodePath, it.Path())
 
 		var (
-			node []byte
-			ty   NodeType
+			nodeData []byte
+			ty       nodeType
 		)
 
-		node, err = trieDB.Node(it.Hash())
+		nodeData, err = trieDB.Node(it.Hash())
 		if err != nil {
 			return err
 		}
 
 		var nodeElements []interface{}
-		if err = rlp.DecodeBytes(node, &nodeElements); err != nil {
+		if err = rlp.DecodeBytes(nodeData, &nodeElements); err != nil {
 			return err
 		}
 
@@ -172,25 +176,25 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 			return err
 		}
 
-		stateNode := Node{
-			NodeType: ty,
-			Path:     nodePath,
-			Value:    node,
+		stateNode := &node{
+			nodeType: ty,
+			path:     nodePath,
+			value:    nodeData,
 		}
 
 		switch ty {
-		case Leaf:
+		case leaf:
 			// if the node is a leaf, decode the account and publish the associated storage trie nodes if there are any
 			var account types.StateAccount
-			if err := rlp.DecodeBytes(nodeElements[1].([]byte), &account); err != nil {
-				return fmt.Errorf("error decoding account for leaf node at path %x nerror: %v", nodePath, err)
+			if err = rlp.DecodeBytes(nodeElements[1].([]byte), &account); err != nil {
+				return fmt.Errorf("error decoding account for leaf node at path %x nerror: %w", nodePath, err)
 			}
 
 			partialPath := trie.CompactToHex(nodeElements[0].([]byte))
 			valueNodePath := append(nodePath, partialPath...)
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
-			stateNode.Key = common.BytesToHash(leafKey)
+			stateNode.key = common.BytesToHash(leafKey)
 
 			stateID, err := s.ipfsPublisher.PublishStateNode(stateNode, headerID, tx)
 			if err != nil {
@@ -199,23 +203,22 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 
 			// publish any non-nil code referenced by codehash
 			if !bytes.Equal(account.CodeHash, emptyCodeHash) {
-				key := common.BytesToHash(account.CodeHash)
-				codeBytes := rawdb.ReadCode(s.ethDB, key)
+				codeBytes := rawdb.ReadCode(s.ethDB, common.BytesToHash(account.CodeHash))
 				if len(codeBytes) == 0 {
 					logrus.Error("Code is missing", "account", common.BytesToHash(it.LeafKey()))
 					return errors.New("missing code")
 				}
 
-				if err := s.ipfsPublisher.PublishCode(codeBytes, tx); err != nil {
+				if err = s.ipfsPublisher.PublishCode(codeBytes, tx); err != nil {
 					return err
 				}
 			}
 
 			if tx, err = s.storageSnapshot(account.Root, stateID, tx); err != nil {
-				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %v", account, err)
+				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %w", account, err)
 			}
-		case Extension, Branch:
-			stateNode.Key = common.BytesToHash([]byte{})
+		case extension, branch:
+			stateNode.key = common.BytesToHash([]byte{})
 			if _, err := s.ipfsPublisher.PublishStateNode(stateNode, headerID, tx); err != nil {
 				return err
 			}
@@ -254,36 +257,42 @@ func (s *Service) storageSnapshot(sr common.Hash, stateID int64, tx *sqlx.Tx) (*
 
 		nodePath := make([]byte, len(it.Path()))
 		copy(nodePath, it.Path())
-		node, err := s.stateDB.TrieDB().Node(it.Hash())
+
+		var (
+			nodeData []byte
+			ty       nodeType
+		)
+
+		nodeData, err = s.stateDB.TrieDB().Node(it.Hash())
 		if err != nil {
 			return nil, err
 		}
 
 		var nodeElements []interface{}
-		if err := rlp.DecodeBytes(node, &nodeElements); err != nil {
+		if err = rlp.DecodeBytes(nodeData, &nodeElements); err != nil {
 			return nil, err
 		}
 
-		ty, err := CheckKeyType(nodeElements)
+		ty, err = CheckKeyType(nodeElements)
 		if err != nil {
 			return nil, err
 		}
 
-		storageNode := Node{
-			NodeType: ty,
-			Path:     nodePath,
-			Value:    node,
+		storageNode := &node{
+			nodeType: ty,
+			path:     nodePath,
+			value:    nodeData,
 		}
 
 		switch ty {
-		case Leaf:
+		case leaf:
 			partialPath := trie.CompactToHex(nodeElements[0].([]byte))
 			valueNodePath := append(nodePath, partialPath...)
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
-			storageNode.Key = common.BytesToHash(leafKey)
-		case Extension, Branch:
-			storageNode.Key = common.BytesToHash([]byte{})
+			storageNode.key = common.BytesToHash(leafKey)
+		case extension, branch:
+			storageNode.key = common.BytesToHash([]byte{})
 		default:
 			return nil, errors.New("unexpected node type")
 		}
