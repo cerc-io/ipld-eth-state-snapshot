@@ -9,4 +9,4 @@
     ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
 
 [snapshot]
-    blockHeight = 58176
+    blockHeight = -1
