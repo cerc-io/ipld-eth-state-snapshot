@@ -22,12 +22,12 @@ import (
 )
 
 const (
-	ancientDBPath   = "ANCIENT_DB_PATH"
-	ethClientName   = "ETH_CLIENT_NAME"
-	ethGenesisBlock = "ETH_GENESIS_BLOCK"
-	ethNetworkID    = "ETH_NETWORK_ID"
-	ethNodeID       = "ETH_NODE_ID"
-	lvlDBPath       = "LVL_DB_PATH"
+	ANCIENT_DB_PATH   = "ANCIENT_DB_PATH"
+	ETH_CLIENT_NAME   = "ETH_CLIENT_NAME"
+	ETH_GENESIS_BLOCK = "ETH_GENESIS_BLOCK"
+	ETH_NETWORK_ID    = "ETH_NETWORK_ID"
+	ETH_NODE_ID       = "ETH_NODE_ID"
+	LVL_DB_PATH       = "LVL_DB_PATH"
 )
 
 // Config is config parameters for DB.
@@ -42,12 +42,12 @@ type Config struct {
 // Init Initialises config
 func (c *Config) Init() {
 	c.dbInit()
-	viper.BindEnv("leveldb.path", lvlDBPath)
-	viper.BindEnv("ethereum.nodeID", ethNodeID)
-	viper.BindEnv("ethereum.clientName", ethClientName)
-	viper.BindEnv("ethereum.genesisBlock", ethGenesisBlock)
-	viper.BindEnv("ethereum.networkID", ethNetworkID)
-	viper.BindEnv("leveldb.ancient", ancientDBPath)
+	viper.BindEnv("leveldb.path", LVL_DB_PATH)
+	viper.BindEnv("ethereum.nodeID", ETH_NODE_ID)
+	viper.BindEnv("ethereum.clientName", ETH_CLIENT_NAME)
+	viper.BindEnv("ethereum.genesisBlock", ETH_GENESIS_BLOCK)
+	viper.BindEnv("ethereum.networkID", ETH_NETWORK_ID)
+	viper.BindEnv("leveldb.ancient", ANCIENT_DB_PATH)
 
 	c.Node = ethNode.Info{
 		ID:           viper.GetString("ethereum.nodeID"),

@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
+	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
@@ -136,7 +137,14 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 	}
 
 	defer func() {
-		err = tx.Commit()
+		if rec := recover(); rec != nil {
+			shared.Rollback(tx)
+			panic(rec)
+		} else if err != nil {
+			shared.Rollback(tx)
+		} else {
+			err = tx.Commit()
+		}
 	}()
 
 	for it.Next(true) {
@@ -203,13 +211,14 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 
 			// publish any non-nil code referenced by codehash
 			if !bytes.Equal(account.CodeHash, emptyCodeHash) {
-				codeBytes := rawdb.ReadCode(s.ethDB, common.BytesToHash(account.CodeHash))
+				codeHash := common.BytesToHash(account.CodeHash)
+				codeBytes := rawdb.ReadCode(s.ethDB, codeHash)
 				if len(codeBytes) == 0 {
 					logrus.Error("Code is missing", "account", common.BytesToHash(it.LeafKey()))
 					return errors.New("missing code")
 				}
 
-				if err = s.ipfsPublisher.PublishCode(codeBytes, tx); err != nil {
+				if err = s.ipfsPublisher.PublishCode(codeHash, codeBytes, tx); err != nil {
 					return err
 				}
 			}

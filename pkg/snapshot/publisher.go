@@ -17,10 +17,10 @@ package snapshot
 
 import (
 	"bytes"
+	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	blockstore "github.com/ipfs/go-ipfs-blockstore"
-	dshelp "github.com/ipfs/go-ipfs-ds-help"
 	"github.com/jmoiron/sqlx"
 	"github.com/multiformats/go-multihash"
 
@@ -90,13 +90,6 @@ func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (i
 		stateKey = node.key.Hex()
 	}
 
-	defer func() {
-		if rec := recover(); rec != nil {
-			shared.Rollback(tx)
-			panic(rec)
-		}
-	}()
-
 	stateCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStateTrie, multihash.KECCAK_256, node.value)
 	if err != nil {
 		return 0, err
@@ -118,13 +111,6 @@ func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) e
 		storageKey = node.key.Hex()
 	}
 
-	defer func() {
-		if rec := recover(); rec != nil {
-			shared.Rollback(tx)
-			panic(rec)
-		}
-	}()
-
 	storageCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStorageTrie, multihash.KECCAK_256, node.value)
 	if err != nil {
 		return err
@@ -142,22 +128,15 @@ func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) e
 }
 
 // PublishCode writes code to the ipfs backing pg datastore
-func (p *Publisher) PublishCode(code []byte, tx *sqlx.Tx) error {
+func (p *Publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx.Tx) error {
 	// no codec for code, doesn't matter though since blockstore key is multihash-derived
-	return p.publishRaw(ipld.MEthStorageTrie, multihash.KECCAK_256, code, tx)
-}
-
-func (p *Publisher) publishRaw(codec, mh uint64, raw []byte, tx *sqlx.Tx) error {
-	c, err := ipld.RawdataToCid(codec, raw, mh)
+	mhKey, err := shared.MultihashKeyFromKeccak256(codeHash)
 	if err != nil {
-		return err
+		return fmt.Errorf("error deriving multihash key from codehash: %v", err)
 	}
 
-	dbKey := dshelp.MultihashToDsKey(c.Hash())
-	prefixedKey := blockstore.BlockPrefix.String() + dbKey.String()
-	_, err = tx.Exec(`INSERT INTO public.blocks (key, data) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, prefixedKey, raw)
-	if err != nil {
-		return err
+	if err = shared.PublishDirect(tx, mhKey, codeBytes); err != nil {
+		return fmt.Errorf("error publishing code IPLD: %v", err)
 	}
 
 	p.currBatchSize++
