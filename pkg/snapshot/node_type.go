@@ -21,43 +21,43 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Node for holding trie node information
-type Node struct {
-	NodeType NodeType
-	Path     []byte
-	Key      common.Hash
-	Value    []byte
+// node for holding trie node information
+type node struct {
+	nodeType nodeType
+	path     []byte
+	key      common.Hash
+	value    []byte
 }
 
-// NodeType for explicitly setting type of node
-type NodeType int
+// nodeType for explicitly setting type of node
+type nodeType int
 
 const (
-	Branch NodeType = iota
-	Extension
-	Leaf
-	Removed
-	Unknown
+	branch nodeType = iota
+	extension
+	leaf
+	removed
+	unknown
 )
 
 // CheckKeyType checks what type of key we have
-func CheckKeyType(elements []interface{}) (NodeType, error) {
+func CheckKeyType(elements []interface{}) (nodeType, error) {
 	if len(elements) > 2 {
-		return Branch, nil
+		return branch, nil
 	}
 	if len(elements) < 2 {
-		return Unknown, fmt.Errorf("node cannot be less than two elements in length")
+		return unknown, fmt.Errorf("node cannot be less than two elements in length")
 	}
 	switch elements[0].([]byte)[0] / 16 {
 	case '\x00':
-		return Extension, nil
+		return extension, nil
 	case '\x01':
-		return Extension, nil
+		return extension, nil
 	case '\x02':
-		return Leaf, nil
+		return leaf, nil
 	case '\x03':
-		return Leaf, nil
+		return leaf, nil
 	default:
-		return Unknown, fmt.Errorf("unknown hex prefix")
+		return unknown, fmt.Errorf("unknown hex prefix")
 	}
 }

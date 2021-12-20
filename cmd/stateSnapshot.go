@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
 	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/snapshot"
 )
 
@@ -37,7 +38,7 @@ var stateSnapshotCmd = &cobra.Command{
 }
 
 func stateSnapshot() {
-	snapConfig := snapshot.Config{}
+	snapConfig := &snapshot.Config{}
 	snapConfig.Init()
 	snapshotService, err := snapshot.NewSnapshotService(snapConfig)
 	if err != nil {

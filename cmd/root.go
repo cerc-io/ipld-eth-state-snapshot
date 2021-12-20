@@ -37,6 +37,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: initFuncs,
 }
 
+// Execute executes root Command.
 func Execute() {
 	log.Info("----- Starting vDB -----")
 	if err := rootCmd.Execute(); err != nil {
