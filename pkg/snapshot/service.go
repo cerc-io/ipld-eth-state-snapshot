@@ -136,6 +136,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 		return err
 	}
 
+	go s.ipfsPublisher.printNodeCounters()
 	defer func() {
 		if rec := recover(); rec != nil {
 			shared.Rollback(tx)

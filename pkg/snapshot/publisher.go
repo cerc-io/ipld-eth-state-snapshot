@@ -18,21 +18,29 @@ package snapshot
 import (
 	"bytes"
 	"fmt"
+	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jmoiron/sqlx"
 	"github.com/multiformats/go-multihash"
+	"github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipfs/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
 )
 
+const period = 1 * time.Minute
+
 // Publisher is wrapper around DB.
 type Publisher struct {
 	db            *postgres.DB
 	currBatchSize uint
+	stateNodeCounter   uint64
+	storageNodeCounter   uint64
+	blockNodeCounter   uint64
 }
 
 // NewPublisher creates Publisher
@@ -95,11 +103,18 @@ func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (i
 		return 0, err
 	}
 
+	// increment block node counter.
+	atomic.AddUint64(&p.blockNodeCounter, 1)
+
 	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
  									ON CONFLICT (header_id, state_path) DO UPDATE SET (state_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)
  									RETURNING id`,
 		headerID, stateKey, stateCIDStr, node.path, node.nodeType, false, mhKey).Scan(&stateID)
 
+	// increment state node counter.
+	atomic.AddUint64(&p.stateNodeCounter, 1)
+
+	// increment current batch size counter
 	p.currBatchSize += 2
 	return stateID, err
 }
@@ -116,6 +131,9 @@ func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) e
 		return err
 	}
 
+	// increment block node counter.
+	atomic.AddUint64(&p.blockNodeCounter, 1)
+
 	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
                               	ON CONFLICT (state_id, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)`,
 		stateID, storageKey, storageCIDStr, node.path, node.nodeType, false, mhKey)
@@ -123,6 +141,10 @@ func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) e
 		return err
 	}
 
+	// increment storage node counter.
+	atomic.AddUint64(&p.storageNodeCounter, 1)
+
+	// increment current batch size counter
 	p.currBatchSize += 2
 	return nil
 }
@@ -138,6 +160,9 @@ func (p *Publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx
 	if err = shared.PublishDirect(tx, mhKey, codeBytes); err != nil {
 		return fmt.Errorf("error publishing code IPLD: %v", err)
 	}
+
+	// increment block node counter.
+	atomic.AddUint64(&p.blockNodeCounter, 1)
 
 	p.currBatchSize++
 	return nil
@@ -160,4 +185,14 @@ func (p *Publisher) checkBatchSize(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, er
 	}
 
 	return tx, nil
+}
+
+// printNodeCounters prints number of node processed.
+func (p *Publisher) printNodeCounters() {
+	t := time.NewTicker(period)
+	for range t.C {
+		logrus.Infof("processed state nodes %d", atomic.LoadUint64(&p.stateNodeCounter))
+		logrus.Infof("processed storage nodes %d", atomic.LoadUint64(&p.storageNodeCounter))
+		logrus.Infof("processed block nodes %d", atomic.LoadUint64(&p.blockNodeCounter))
+	}
 }
