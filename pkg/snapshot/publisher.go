@@ -32,7 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
 )
 
-const period = 1 * time.Minute
+const logInterval = 1 * time.Minute
 
 // Publisher is wrapper around DB.
 type Publisher struct {
@@ -189,7 +189,7 @@ func (p *Publisher) checkBatchSize(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, er
 
 // printNodeCounters prints number of node processed.
 func (p *Publisher) printNodeCounters() {
-	t := time.NewTicker(period)
+	t := time.NewTicker(logInterval)
 	for range t.C {
 		logrus.Infof("processed state nodes %d", atomic.LoadUint64(&p.stateNodeCounter))
 		logrus.Infof("processed storage nodes %d", atomic.LoadUint64(&p.storageNodeCounter))
