@@ -36,11 +36,12 @@ const logInterval = 1 * time.Minute
 
 // Publisher is wrapper around DB.
 type Publisher struct {
-	db            *postgres.DB
-	currBatchSize uint
+	db                 *postgres.DB
+	currBatchSize      uint
 	stateNodeCounter   uint64
-	storageNodeCounter   uint64
-	blockNodeCounter   uint64
+	storageNodeCounter uint64
+	codeNodeCounter    uint64
+	startTime          time.Time
 }
 
 // NewPublisher creates Publisher
@@ -48,6 +49,7 @@ func NewPublisher(db *postgres.DB) *Publisher {
 	return &Publisher{
 		db:            db,
 		currBatchSize: 0,
+		startTime:     time.Now(),
 	}
 }
 
@@ -103,9 +105,6 @@ func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (i
 		return 0, err
 	}
 
-	// increment block node counter.
-	atomic.AddUint64(&p.blockNodeCounter, 1)
-
 	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
  									ON CONFLICT (header_id, state_path) DO UPDATE SET (state_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)
  									RETURNING id`,
@@ -130,9 +129,6 @@ func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) e
 	if err != nil {
 		return err
 	}
-
-	// increment block node counter.
-	atomic.AddUint64(&p.blockNodeCounter, 1)
 
 	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
                               	ON CONFLICT (state_id, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)`,
@@ -161,8 +157,8 @@ func (p *Publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx
 		return fmt.Errorf("error publishing code IPLD: %v", err)
 	}
 
-	// increment block node counter.
-	atomic.AddUint64(&p.blockNodeCounter, 1)
+	// increment code node counter.
+	atomic.AddUint64(&p.codeNodeCounter, 1)
 
 	p.currBatchSize++
 	return nil
@@ -191,8 +187,9 @@ func (p *Publisher) checkBatchSize(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, er
 func (p *Publisher) printNodeCounters() {
 	t := time.NewTicker(logInterval)
 	for range t.C {
-		logrus.Infof("processed state nodes %d", atomic.LoadUint64(&p.stateNodeCounter))
-		logrus.Infof("processed storage nodes %d", atomic.LoadUint64(&p.storageNodeCounter))
-		logrus.Infof("processed block nodes %d", atomic.LoadUint64(&p.blockNodeCounter))
+		logrus.Infof("total runtime: %s", time.Now().Sub(p.startTime).String())
+		logrus.Infof("processed state nodes: %d", atomic.LoadUint64(&p.stateNodeCounter))
+		logrus.Infof("processed storage nodes: %d", atomic.LoadUint64(&p.storageNodeCounter))
+		logrus.Infof("processed code nodes: %d", atomic.LoadUint64(&p.codeNodeCounter))
 	}
 }
