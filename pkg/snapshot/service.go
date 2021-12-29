@@ -136,8 +136,10 @@ func (s *Service) createSnapshot(it trie.NodeIterator, trieDB *trie.Database, he
 		return err
 	}
 
-	go s.ipfsPublisher.printNodeCounters()
+	go s.ipfsPublisher.logNodeCounters()
 	defer func() {
+		logrus.Info("----- final counts -----")
+		s.ipfsPublisher.printNodeCounters()
 		if rec := recover(); rec != nil {
 			shared.Rollback(tx)
 			panic(rec)

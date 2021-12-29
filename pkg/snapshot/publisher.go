@@ -183,13 +183,17 @@ func (p *Publisher) checkBatchSize(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, er
 	return tx, nil
 }
 
-// printNodeCounters prints number of node processed.
-func (p *Publisher) printNodeCounters() {
+// logNodeCounters periodically logs the number of node processed.
+func (p *Publisher) logNodeCounters() {
 	t := time.NewTicker(logInterval)
 	for range t.C {
-		logrus.Infof("total runtime: %s", time.Now().Sub(p.startTime).String())
-		logrus.Infof("processed state nodes: %d", atomic.LoadUint64(&p.stateNodeCounter))
-		logrus.Infof("processed storage nodes: %d", atomic.LoadUint64(&p.storageNodeCounter))
-		logrus.Infof("processed code nodes: %d", atomic.LoadUint64(&p.codeNodeCounter))
+		p.printNodeCounters()
 	}
+}
+
+func (p *Publisher) printNodeCounters() {
+	logrus.Infof("runtime: %s", time.Now().Sub(p.startTime).String())
+	logrus.Infof("processed state nodes: %d", atomic.LoadUint64(&p.stateNodeCounter))
+	logrus.Infof("processed storage nodes: %d", atomic.LoadUint64(&p.storageNodeCounter))
+	logrus.Infof("processed code nodes: %d", atomic.LoadUint64(&p.codeNodeCounter))
 }
