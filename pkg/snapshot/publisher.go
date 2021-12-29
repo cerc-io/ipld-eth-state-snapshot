@@ -18,21 +18,30 @@ package snapshot
 import (
 	"bytes"
 	"fmt"
+	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jmoiron/sqlx"
 	"github.com/multiformats/go-multihash"
+	"github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipfs/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
 )
 
+const logInterval = 1 * time.Minute
+
 // Publisher is wrapper around DB.
 type Publisher struct {
-	db            *postgres.DB
-	currBatchSize uint
+	db                 *postgres.DB
+	currBatchSize      uint
+	stateNodeCounter   uint64
+	storageNodeCounter uint64
+	codeNodeCounter    uint64
+	startTime          time.Time
 }
 
 // NewPublisher creates Publisher
@@ -40,6 +49,7 @@ func NewPublisher(db *postgres.DB) *Publisher {
 	return &Publisher{
 		db:            db,
 		currBatchSize: 0,
+		startTime:     time.Now(),
 	}
 }
 
@@ -100,6 +110,10 @@ func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (i
  									RETURNING id`,
 		headerID, stateKey, stateCIDStr, node.path, node.nodeType, false, mhKey).Scan(&stateID)
 
+	// increment state node counter.
+	atomic.AddUint64(&p.stateNodeCounter, 1)
+
+	// increment current batch size counter
 	p.currBatchSize += 2
 	return stateID, err
 }
@@ -123,6 +137,10 @@ func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) e
 		return err
 	}
 
+	// increment storage node counter.
+	atomic.AddUint64(&p.storageNodeCounter, 1)
+
+	// increment current batch size counter
 	p.currBatchSize += 2
 	return nil
 }
@@ -138,6 +156,9 @@ func (p *Publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx
 	if err = shared.PublishDirect(tx, mhKey, codeBytes); err != nil {
 		return fmt.Errorf("error publishing code IPLD: %v", err)
 	}
+
+	// increment code node counter.
+	atomic.AddUint64(&p.codeNodeCounter, 1)
 
 	p.currBatchSize++
 	return nil
@@ -160,4 +181,19 @@ func (p *Publisher) checkBatchSize(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, er
 	}
 
 	return tx, nil
+}
+
+// logNodeCounters periodically logs the number of node processed.
+func (p *Publisher) logNodeCounters() {
+	t := time.NewTicker(logInterval)
+	for range t.C {
+		p.printNodeCounters()
+	}
+}
+
+func (p *Publisher) printNodeCounters() {
+	logrus.Infof("runtime: %s", time.Now().Sub(p.startTime).String())
+	logrus.Infof("processed state nodes: %d", atomic.LoadUint64(&p.stateNodeCounter))
+	logrus.Infof("processed storage nodes: %d", atomic.LoadUint64(&p.storageNodeCounter))
+	logrus.Infof("processed code nodes: %d", atomic.LoadUint64(&p.codeNodeCounter))
 }
