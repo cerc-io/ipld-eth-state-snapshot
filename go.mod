@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/ethereum/go-ethereum v1.9.11
+	github.com/ethereum/go-ethereum v1.9.14
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
@@ -40,4 +40,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.9.11 => github.com/vulcanize/go-ethereum v1.10.11-statediff-0.0.27
+replace github.com/ethereum/go-ethereum v1.9.14 => github.com/vulcanize/go-ethereum v1.10.14-statediff-0.0.29
