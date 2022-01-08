@@ -24,14 +24,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/sirupsen/logrus"
 
+	iter "github.com/vulcanize/go-eth-state-node-iterator"
 	"github.com/vulcanize/ipfs-blockchain-watcher/pkg/postgres"
-	iter "github.com/vulcanize/go-eth-state-node-iterator/iterator"
 )
 
 var (
@@ -47,13 +48,12 @@ type Service struct {
 	ipfsPublisher *Publisher
 }
 
-
 func NewSnapshotService(con ServiceConfig) (*Service, error) {
 	pgdb, err := postgres.NewDB(con.DBConfig, con.Node)
 	if err != nil {
 		return nil, err
 	}
-	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot")
+	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot", true)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func NewSnapshotService(con ServiceConfig) (*Service, error) {
 }
 
 type SnapshotParams struct {
-	Height uint64
+	Height  uint64
 	Workers uint
 }
 
@@ -108,7 +108,7 @@ func (s *Service) CreateLatestSnapshot(params SnapshotParams) error {
 }
 
 type nodeResult struct {
-	node Node
+	node     Node
 	elements []interface{}
 }
 
@@ -137,68 +137,64 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 	}, nil
 }
 
-func (s *Service) processNode(it trie.NodeIterator, headerID int64) error {
-	if it.Leaf() { // "leaf" nodes are actually "value" nodes, whose parents are the actual leaves
-		return nil
-	}
-	if bytes.Equal(nullHash.Bytes(), it.Hash().Bytes()) {
-		return nil
-	}
-	res, err := resolveNode(it, s.stateDB.TrieDB())
-	if err != nil {
-		return err
-	}
-	switch res.node.NodeType {
-	case Leaf:
-		// if the node is a leaf, decode the account and publish the associated storage trie nodes if there are any
-		var account state.Account
-		if err := rlp.DecodeBytes(res.elements[1].([]byte), &account); err != nil {
-			return fmt.Errorf(
-				"error decoding account for leaf node at path %x nerror: %v", res.node.Path, err)
+func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
+	for it.Next(true) {
+		if it.Leaf() { // "leaf" nodes are actually "value" nodes, whose parents are the actual leaves
+			return nil
 		}
-		partialPath := trie.CompactToHex(res.elements[0].([]byte))
-		valueNodePath := append(res.node.Path, partialPath...)
-		encodedPath := trie.HexToCompact(valueNodePath)
-		leafKey := encodedPath[1:]
-		res.node.Key = common.BytesToHash(leafKey)
-		stateID, err := s.ipfsPublisher.PublishStateNode(res.node, headerID)
+		if bytes.Equal(nullHash.Bytes(), it.Hash().Bytes()) {
+			return nil
+		}
+		res, err := resolveNode(it, s.stateDB.TrieDB())
 		if err != nil {
 			return err
 		}
-		// publish any non-nil code referenced by codehash
-		if !bytes.Equal(account.CodeHash, emptyCodeHash) {
-			codeBytes, err := s.ethDB.Get(account.CodeHash)
+		switch res.node.NodeType {
+		case Leaf:
+			// if the node is a leaf, decode the account and publish the associated storage trie nodes if there are any
+			// var account snapshot.Account
+			var account types.StateAccount
+			if err := rlp.DecodeBytes(res.elements[1].([]byte), &account); err != nil {
+				return fmt.Errorf(
+					"error decoding account for leaf node at path %x nerror: %v", res.node.Path, err)
+			}
+			partialPath := trie.CompactToHex(res.elements[0].([]byte))
+			valueNodePath := append(res.node.Path, partialPath...)
+			encodedPath := trie.HexToCompact(valueNodePath)
+			leafKey := encodedPath[1:]
+			res.node.Key = common.BytesToHash(leafKey)
+			stateID, err := s.ipfsPublisher.PublishStateNode(res.node, headerID)
 			if err != nil {
 				return err
 			}
-			if err := s.ipfsPublisher.PublishCode(codeBytes); err != nil {
+			// publish any non-nil code referenced by codehash
+			if !bytes.Equal(account.CodeHash, emptyCodeHash) {
+				codeBytes, err := s.ethDB.Get(account.CodeHash)
+				if err != nil {
+					return err
+				}
+				if err := s.ipfsPublisher.PublishCode(codeBytes); err != nil {
+					return err
+				}
+			}
+			if err := s.storageSnapshot(account.Root, stateID); err != nil {
+				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %v", account, err)
+			}
+		case Extension, Branch:
+			res.node.Key = common.BytesToHash([]byte{})
+			if _, err := s.ipfsPublisher.PublishStateNode(res.node, headerID); err != nil {
 				return err
 			}
+		default:
+			return errors.New("unexpected node type")
 		}
-		if err := s.storageSnapshot(account.Root, stateID); err != nil {
-			return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %v", account, err)
-		}
-	case Extension, Branch:
-		res.node.Key = common.BytesToHash([]byte{})
-		if _, err := s.ipfsPublisher.PublishStateNode(res.node, headerID); err != nil {
-			return err
-		}
-	default:
-		return errors.New("unexpected node type")
-	}
-	return nil
-}
+		return nil
 
-func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
-	for it.Next(true) {
-		if err := s.processNode(it, headerID); err != nil {
-			return err
-		}
 	}
 	return it.Error()
 }
 
-// Full-trie snapshot using goroutines
+// Full-trie concurrent snapshot
 func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers uint) error {
 	errors := make(chan error)
 	var wg sync.WaitGroup
