@@ -18,11 +18,9 @@ Config format:
     user     = "postgres"
 
 [leveldb]
-    path = "/Users/user/Library/Ethereum/geth/chaindata"
-    # path for geth's "freezer" archive
-    ancient = "/Users/user/Library/Ethereum/geth/chaindata"
+   path = "/Users/user/Library/Ethereum/geth/chaindata"
+   ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
 
 [snapshot]
-    blockHeight = 0
-    divideDepth = 1
+   blockHeight = 0
 ```
