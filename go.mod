@@ -26,6 +26,7 @@ require (
 	github.com/smartystreets/assertions v1.0.0 // indirect
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
+	github.com/vulcanize/go-eth-state-node-iterator v0.0.1-alpha
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/goleak v1.1.11 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
