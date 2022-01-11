@@ -44,7 +44,12 @@ func stateSnapshot() {
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
-	snapshotService, err := snapshot.NewSnapshotService(snapConfig.Eth, snapshot.NewPublisher(pgDB))
+	edb, err := snapshot.NewLevelDB(snapConfig.Eth)
+	if err != nil {
+		logWithCommand.Fatal(err)
+	}
+
+	snapshotService, err := snapshot.NewSnapshotService(edb, snapshot.NewPublisher(pgDB))
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}

@@ -9,13 +9,13 @@ import (
 )
 
 func testConfig(leveldbpath, ancientdbpath string) *Config {
-	dbParams := postgres.ConnectionParams{}
-	dbParams.Name = "snapshot_test"
-	dbParams.Hostname = "localhost"
-	dbParams.Port = 5432
-	dbParams.User = "tester"
-	dbParams.Password = "test_pw"
-	uri := postgres.DbConnectionString(dbParams)
+	dbParams := postgres.ConnectionParams{
+		Name:     "snapshot_test",
+		Hostname: "localhost",
+		Port:     5432,
+		User:     "tester",
+		Password: "test_pw",
+	}
 	connconfig := postgres.ConnectionConfig{
 		MaxIdle:     0,
 		MaxLifetime: 0,
@@ -32,7 +32,7 @@ func testConfig(leveldbpath, ancientdbpath string) *Config {
 	return &Config{
 		DB: &DBConfig{
 			Node:       nodeinfo,
-			URI:        uri,
+			URI:        postgres.DbConnectionString(dbParams),
 			ConnConfig: connconfig,
 		},
 		Eth: &EthConfig{

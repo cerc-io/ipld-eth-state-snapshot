@@ -37,6 +37,7 @@ type DBConfig struct {
 	ConnConfig postgres.ConnectionConfig
 }
 
+// EthConfig is config parameters for the chain.
 type EthConfig struct {
 	LevelDBPath   string
 	AncientDBPath string

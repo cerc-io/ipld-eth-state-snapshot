@@ -63,13 +63,14 @@ func NewPostgresDB(con *DBConfig) (*postgres.DB, error) {
 	return pgDB, nil
 }
 
-// NewSnapshotService creates Service.
-func NewSnapshotService(con *EthConfig, pub *Publisher) (*Service, error) {
-	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot", false)
-	if err != nil {
-		return nil, err
-	}
+func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
+	return rawdb.NewLevelDBDatabaseWithFreezer(
+		con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot", false,
+	)
+}
 
+// NewSnapshotService creates Service.
+func NewSnapshotService(edb ethdb.Database, pub *Publisher) (*Service, error) {
 	return &Service{
 		ethDB:         edb,
 		stateDB:       state.NewDatabase(edb),
