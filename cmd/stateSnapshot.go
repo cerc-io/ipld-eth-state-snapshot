@@ -46,13 +46,12 @@ func stateSnapshot() {
 	}
 	height := viper.GetInt64("snapshot.blockHeight")
 	workers := viper.GetUint("snapshot.workers")
-	params := snapshot.SnapshotParams{Workers: workers}
 	if height < 0 {
-		if err := snapshotService.CreateLatestSnapshot(params); err != nil {
+		if err := snapshotService.CreateLatestSnapshot(workers); err != nil {
 			logWithCommand.Fatal(err)
 		}
 	} else {
-		params.Height = uint64(height)
+		params := snapshot.SnapshotParams{Workers: workers, Height: uint64(height)}
 		if err := snapshotService.CreateSnapshot(params); err != nil {
 			logWithCommand.Fatal(err)
 		}
