@@ -1,11 +1,19 @@
 package snapshot
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+
 	ethNode "github.com/ethereum/go-ethereum/statediff/indexer/node"
 	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
+	// "github.com/ethereum/go-ethereum/ethdb"
+
+	fixt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/fixture"
+	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/snapshot/mock"
 )
 
 func testConfig(leveldbpath, ancientdbpath string) *Config {
@@ -42,24 +50,48 @@ func testConfig(leveldbpath, ancientdbpath string) *Config {
 	}
 }
 
-func NewMockPublisher() *Publisher {
-	return nil
-}
-
 func TestCreateSnapshot(t *testing.T) {
-	datadir := t.TempDir()
-	config := testConfig(
-		filepath.Join(datadir, "leveldb"),
-		filepath.Join(datadir, "ancient"),
-	)
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	fixture_path := filepath.Join(wd, "..", "..", "fixture")
+	datadir := filepath.Join(fixture_path, "chaindata")
+	if _, err := os.Stat(datadir); err != nil {
+		t.Fatal("no chaindata:", err)
+	}
+	config := testConfig(datadir, filepath.Join(datadir, "ancient"))
+	fmt.Printf("config: %+v %+v\n", config.DB, config.Eth)
 
-	pub := NewMockPublisher()
-	service, err := NewSnapshotService(config.Eth, pub)
+	edb, err := NewLevelDB(config.Eth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workers := 8
+
+	pub := mock.NewMockPublisher(t)
+	pub.EXPECT().PublishHeader(gomock.Eq(fixt.PublishHeader))
+	pub.EXPECT().BeginTx().
+		// AnyTimes()
+		Times(workers)
+	pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).
+		// AnyTimes()
+		Times(workers)
+	// pub.EXPECT().PublishStorageNode(gomock.Eq(fixt.StorageNode), gomock.Eq(int64(0)), gomock.Any())
+	// pub.EXPECT().PublishStateNode(statenode, gomock.Eq(int64(1)), gomock.Any())
+
+	pub.EXPECT().PublishStateNode(gomock.Any(), mock.AnyOf(int64(0), int64(1)), gomock.Any()).
+		Times(workers)
+
+	pub.EXPECT().CommitTx(gomock.Any()).
+		Times(workers)
+
+	service, err := NewSnapshotService(edb, pub)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	params := SnapshotParams{Height: 1}
+	params := SnapshotParams{Height: 1, Workers: uint(workers)}
 	err = service.CreateSnapshot(params)
 	if err != nil {
 		t.Fatal(err)

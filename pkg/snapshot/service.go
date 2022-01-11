@@ -34,6 +34,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
 
+	. "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
 )
 
@@ -51,7 +52,7 @@ var (
 type Service struct {
 	ethDB         ethdb.Database
 	stateDB       state.Database
-	ipfsPublisher *Publisher
+	ipfsPublisher Publisher
 	maxBatchSize  uint
 }
 
@@ -70,7 +71,7 @@ func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
 }
 
 // NewSnapshotService creates Service.
-func NewSnapshotService(edb ethdb.Database, pub *Publisher) (*Service, error) {
+func NewSnapshotService(edb ethdb.Database, pub Publisher) (*Service, error) {
 	return &Service{
 		ethDB:         edb,
 		stateDB:       state.NewDatabase(edb),
@@ -125,11 +126,19 @@ func (s *Service) CreateLatestSnapshot(workers uint) error {
 }
 
 type nodeResult struct {
-	node     node
+	node     Node
 	elements []interface{}
 }
 
 func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, error) {
+	// "leaf" nodes are actually "value" nodes, whose parents are the actual leaves
+	if it.Leaf() {
+		return nil, nil
+	}
+	if bytes.Equal(nullHash.Bytes(), it.Hash().Bytes()) {
+		return nil, nil
+	}
+
 	path := make([]byte, len(it.Path()))
 	copy(path, it.Path())
 	n, err := trieDB.Node(it.Hash())
@@ -145,66 +154,59 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 		return nil, err
 	}
 	return &nodeResult{
-		node: node{
-			nodeType: ty,
-			path:     path,
-			value:    n,
+		node: Node{
+			NodeType: ty,
+			Path:     path,
+			Value:    n,
 		},
 		elements: elements,
 	}, nil
 }
 
 func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
-	tx, err := s.ipfsPublisher.db.Beginx()
+	tx, err := s.ipfsPublisher.BeginTx()
 	if err != nil {
 		return err
 	}
 
-	go s.ipfsPublisher.logNodeCounters()
 	defer func() {
-		logrus.Info("----- final counts -----")
-		s.ipfsPublisher.printNodeCounters()
 		if rec := recover(); rec != nil {
 			shared.Rollback(tx)
 			panic(rec)
 		} else if err != nil {
 			shared.Rollback(tx)
 		} else {
-			err = tx.Commit()
+			err = s.ipfsPublisher.CommitTx(tx)
 		}
 	}()
 
 	for it.Next(true) {
-		if it.Leaf() { // "leaf" nodes are actually "value" nodes, whose parents are the actual leaves
-			return nil
-		}
-
-		if bytes.Equal(nullHash.Bytes(), it.Hash().Bytes()) {
-			return nil
-		}
-		tx, err = s.ipfsPublisher.checkBatchSize(tx, s.maxBatchSize)
-		if err != nil {
-			return err
-		}
-
 		res, err := resolveNode(it, s.stateDB.TrieDB())
 		if err != nil {
 			return err
 		}
-		switch res.node.nodeType {
-		case leaf:
+		if res == nil {
+			continue
+		}
+
+		tx, err = s.ipfsPublisher.PrepareTxForBatch(tx, s.maxBatchSize)
+		if err != nil {
+			return err
+		}
+
+		switch res.node.NodeType {
+		case Leaf:
 			// if the node is a leaf, decode the account and publish the associated storage trie nodes if there are any
-			// var account snapshot.Account
 			var account types.StateAccount
 			if err := rlp.DecodeBytes(res.elements[1].([]byte), &account); err != nil {
 				return fmt.Errorf(
-					"error decoding account for leaf node at path %x nerror: %v", res.node.path, err)
+					"error decoding account for leaf node at path %x nerror: %v", res.node.Path, err)
 			}
 			partialPath := trie.CompactToHex(res.elements[0].([]byte))
-			valueNodePath := append(res.node.path, partialPath...)
+			valueNodePath := append(res.node.Path, partialPath...)
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
-			res.node.key = common.BytesToHash(leafKey)
+			res.node.Key = common.BytesToHash(leafKey)
 			stateID, err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx)
 			if err != nil {
 				return err
@@ -227,8 +229,8 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
 			if tx, err = s.storageSnapshot(account.Root, stateID, tx); err != nil {
 				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %w", account, err)
 			}
-		case extension, branch:
-			res.node.key = common.BytesToHash([]byte{})
+		case Extension, Branch:
+			res.node.Key = common.BytesToHash([]byte{})
 			if _, err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx); err != nil {
 				return err
 			}
@@ -236,7 +238,6 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
 			return errors.New("unexpected node type")
 		}
 		return nil
-
 	}
 	return it.Error()
 }
@@ -278,21 +279,15 @@ func (s *Service) storageSnapshot(sr common.Hash, stateID int64, tx *sqlx.Tx) (*
 
 	it := sTrie.NodeIterator(make([]byte, 0))
 	for it.Next(true) {
-		// skip value nodes
-		if it.Leaf() {
-			continue
-		}
-
-		if bytes.Equal(nullHash.Bytes(), it.Hash().Bytes()) {
-			continue
-		}
 		res, err := resolveNode(it, s.stateDB.TrieDB())
 		if err != nil {
 			return nil, err
 		}
-		// if res == nil {continue}
+		if res == nil {
+			continue
+		}
 
-		tx, err = s.ipfsPublisher.checkBatchSize(tx, s.maxBatchSize)
+		tx, err = s.ipfsPublisher.PrepareTxForBatch(tx, s.maxBatchSize)
 		if err != nil {
 			return nil, err
 		}
@@ -302,17 +297,17 @@ func (s *Service) storageSnapshot(sr common.Hash, stateID int64, tx *sqlx.Tx) (*
 		if err != nil {
 			return nil, err
 		}
-		res.node.value = nodeData
+		res.node.Value = nodeData
 
-		switch res.node.nodeType {
-		case leaf:
+		switch res.node.NodeType {
+		case Leaf:
 			partialPath := trie.CompactToHex(res.elements[0].([]byte))
-			valueNodePath := append(res.node.path, partialPath...)
+			valueNodePath := append(res.node.Path, partialPath...)
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
-			res.node.key = common.BytesToHash(leafKey)
-		case extension, branch:
-			res.node.key = common.BytesToHash([]byte{})
+			res.node.Key = common.BytesToHash(leafKey)
+		case Extension, Branch:
+			res.node.Key = common.BytesToHash([]byte{})
 		default:
 			return nil, errors.New("unexpected node type")
 		}

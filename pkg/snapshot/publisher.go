@@ -30,12 +30,13 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipfs/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
+	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
 )
 
 const logInterval = 1 * time.Minute
 
 // Publisher is wrapper around DB.
-type Publisher struct {
+type publisher struct {
 	db                 *postgres.DB
 	currBatchSize      uint
 	stateNodeCounter   uint64
@@ -45,16 +46,31 @@ type Publisher struct {
 }
 
 // NewPublisher creates Publisher
-func NewPublisher(db *postgres.DB) *Publisher {
-	return &Publisher{
+func NewPublisher(db *postgres.DB) *publisher {
+	return &publisher{
 		db:            db,
 		currBatchSize: 0,
 		startTime:     time.Now(),
 	}
 }
 
+func (p *publisher) BeginTx() (*sqlx.Tx, error) {
+	tx, err := p.db.Beginx()
+	if err != nil {
+		return nil, err
+	}
+	go p.logNodeCounters()
+	return tx, nil
+}
+
+func (p *publisher) CommitTx(tx *sqlx.Tx) error {
+	logrus.Info("----- final counts -----")
+	p.printNodeCounters()
+	return tx.Commit()
+}
+
 // PublishHeader writes the header to the ipfs backing pg datastore and adds secondary indexes in the header_cids table
-func (p *Publisher) PublishHeader(header *types.Header) (int64, error) {
+func (p *publisher) PublishHeader(header *types.Header) (int64, error) {
 	headerNode, err := ipld.NewEthHeader(header)
 	if err != nil {
 		return 0, err
@@ -93,14 +109,14 @@ func (p *Publisher) PublishHeader(header *types.Header) (int64, error) {
 }
 
 // PublishStateNode writes the state node to the ipfs backing datastore and adds secondary indexes in the state_cids table
-func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (int64, error) {
+func (p *publisher) PublishStateNode(node *snapt.Node, headerID int64, tx *sqlx.Tx) (int64, error) {
 	var stateID int64
 	var stateKey string
-	if !bytes.Equal(node.key.Bytes(), nullHash.Bytes()) {
-		stateKey = node.key.Hex()
+	if !bytes.Equal(node.Key.Bytes(), nullHash.Bytes()) {
+		stateKey = node.Key.Hex()
 	}
 
-	stateCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStateTrie, multihash.KECCAK_256, node.value)
+	stateCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStateTrie, multihash.KECCAK_256, node.Value)
 	if err != nil {
 		return 0, err
 	}
@@ -108,7 +124,7 @@ func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (i
 	err = tx.QueryRowx(`INSERT INTO eth.state_cids (header_id, state_leaf_key, cid, state_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
  									ON CONFLICT (header_id, state_path) DO UPDATE SET (state_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)
  									RETURNING id`,
-		headerID, stateKey, stateCIDStr, node.path, node.nodeType, false, mhKey).Scan(&stateID)
+		headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false, mhKey).Scan(&stateID)
 
 	// increment state node counter.
 	atomic.AddUint64(&p.stateNodeCounter, 1)
@@ -119,20 +135,20 @@ func (p *Publisher) PublishStateNode(node *node, headerID int64, tx *sqlx.Tx) (i
 }
 
 // PublishStorageNode writes the storage node to the ipfs backing pg datastore and adds secondary indexes in the storage_cids table
-func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) error {
+func (p *publisher) PublishStorageNode(node *snapt.Node, stateID int64, tx *sqlx.Tx) error {
 	var storageKey string
-	if !bytes.Equal(node.key.Bytes(), nullHash.Bytes()) {
-		storageKey = node.key.Hex()
+	if !bytes.Equal(node.Key.Bytes(), nullHash.Bytes()) {
+		storageKey = node.Key.Hex()
 	}
 
-	storageCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStorageTrie, multihash.KECCAK_256, node.value)
+	storageCIDStr, mhKey, err := shared.PublishRaw(tx, ipld.MEthStorageTrie, multihash.KECCAK_256, node.Value)
 	if err != nil {
 		return err
 	}
 
 	_, err = tx.Exec(`INSERT INTO eth.storage_cids (state_id, storage_leaf_key, cid, storage_path, node_type, diff, mh_key) VALUES ($1, $2, $3, $4, $5, $6, $7)
                               	ON CONFLICT (state_id, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff, mh_key) = ($2, $3, $5, $6, $7)`,
-		stateID, storageKey, storageCIDStr, node.path, node.nodeType, false, mhKey)
+		stateID, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
 	if err != nil {
 		return err
 	}
@@ -146,7 +162,7 @@ func (p *Publisher) PublishStorageNode(node *node, stateID int64, tx *sqlx.Tx) e
 }
 
 // PublishCode writes code to the ipfs backing pg datastore
-func (p *Publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx.Tx) error {
+func (p *publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx.Tx) error {
 	// no codec for code, doesn't matter though since blockstore key is multihash-derived
 	mhKey, err := shared.MultihashKeyFromKeccak256(codeHash)
 	if err != nil {
@@ -164,7 +180,7 @@ func (p *Publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx
 	return nil
 }
 
-func (p *Publisher) checkBatchSize(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, error) {
+func (p *publisher) PrepareTxForBatch(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, error) {
 	var err error
 	// maximum batch size reached, commit the current transaction and begin a new transaction.
 	if maxBatchSize <= p.currBatchSize {
@@ -184,14 +200,14 @@ func (p *Publisher) checkBatchSize(tx *sqlx.Tx, maxBatchSize uint) (*sqlx.Tx, er
 }
 
 // logNodeCounters periodically logs the number of node processed.
-func (p *Publisher) logNodeCounters() {
+func (p *publisher) logNodeCounters() {
 	t := time.NewTicker(logInterval)
 	for range t.C {
 		p.printNodeCounters()
 	}
 }
 
-func (p *Publisher) printNodeCounters() {
+func (p *publisher) printNodeCounters() {
 	logrus.Infof("runtime: %s", time.Now().Sub(p.startTime).String())
 	logrus.Infof("processed state nodes: %d", atomic.LoadUint64(&p.stateNodeCounter))
 	logrus.Infof("processed storage nodes: %d", atomic.LoadUint64(&p.storageNodeCounter))
