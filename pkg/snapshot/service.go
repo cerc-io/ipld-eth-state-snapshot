@@ -55,13 +55,16 @@ type Service struct {
 	maxBatchSize  uint
 }
 
-// NewSnapshotService creates Service.
-func NewSnapshotService(con *Config) (*Service, error) {
-	pgDB, err := postgres.NewDB(con.connectionURI, con.DBConfig, con.Node)
+func NewPostgresDB(con *DBConfig) (*postgres.DB, error) {
+	pgDB, err := postgres.NewDB(con.URI, con.ConnConfig, con.Node)
 	if err != nil {
 		return nil, err
 	}
+	return pgDB, nil
+}
 
+// NewSnapshotService creates Service.
+func NewSnapshotService(con *EthConfig, pub *Publisher) (*Service, error) {
 	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot", false)
 	if err != nil {
 		return nil, err
@@ -70,7 +73,7 @@ func NewSnapshotService(con *Config) (*Service, error) {
 	return &Service{
 		ethDB:         edb,
 		stateDB:       state.NewDatabase(edb),
-		ipfsPublisher: NewPublisher(pgDB),
+		ipfsPublisher: pub,
 		maxBatchSize:  defaultBatchSize,
 	}, nil
 }

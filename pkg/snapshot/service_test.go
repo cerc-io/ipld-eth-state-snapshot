@@ -16,7 +16,7 @@ func testConfig(leveldbpath, ancientdbpath string) *Config {
 	dbParams.User = "tester"
 	dbParams.Password = "test_pw"
 	uri := postgres.DbConnectionString(dbParams)
-	dbconfig := postgres.ConnectionConfig{
+	connconfig := postgres.ConnectionConfig{
 		MaxIdle:     0,
 		MaxLifetime: 0,
 		MaxOpen:     4,
@@ -30,12 +30,20 @@ func testConfig(leveldbpath, ancientdbpath string) *Config {
 	}
 
 	return &Config{
-		LevelDBPath:   leveldbpath,
-		AncientDBPath: ancientdbpath,
-		Node:          nodeinfo,
-		connectionURI: uri,
-		DBConfig:      dbconfig,
+		DB: &DBConfig{
+			Node:       nodeinfo,
+			URI:        uri,
+			ConnConfig: connconfig,
+		},
+		Eth: &EthConfig{
+			LevelDBPath:   leveldbpath,
+			AncientDBPath: ancientdbpath,
+		},
 	}
+}
+
+func NewMockPublisher() *Publisher {
+	return nil
 }
 
 func TestCreateSnapshot(t *testing.T) {
@@ -45,7 +53,8 @@ func TestCreateSnapshot(t *testing.T) {
 		filepath.Join(datadir, "ancient"),
 	)
 
-	service, err := NewSnapshotService(config)
+	pub := NewMockPublisher()
+	service, err := NewSnapshotService(config.Eth, pub)
 	if err != nil {
 		t.Fatal(err)
 	}
