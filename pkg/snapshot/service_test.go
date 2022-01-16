@@ -10,7 +10,6 @@ import (
 
 	ethNode "github.com/ethereum/go-ethereum/statediff/indexer/node"
 	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
-	// "github.com/ethereum/go-ethereum/ethdb"
 
 	fixt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/fixture"
 	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/snapshot/mock"
@@ -72,17 +71,13 @@ func TestCreateSnapshot(t *testing.T) {
 	pub := mock.NewMockPublisher(t)
 	pub.EXPECT().PublishHeader(gomock.Eq(fixt.PublishHeader))
 	pub.EXPECT().BeginTx().
-		// AnyTimes()
 		Times(workers)
 	pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).
-		// AnyTimes()
 		Times(workers)
-	// pub.EXPECT().PublishStorageNode(gomock.Eq(fixt.StorageNode), gomock.Eq(int64(0)), gomock.Any())
-	// pub.EXPECT().PublishStateNode(statenode, gomock.Eq(int64(1)), gomock.Any())
-
 	pub.EXPECT().PublishStateNode(gomock.Any(), mock.AnyOf(int64(0), int64(1)), gomock.Any()).
 		Times(workers)
-
+	// TODO: fixtures for storage node
+	// pub.EXPECT().PublishStorageNode(gomock.Eq(fixt.StorageNode), gomock.Eq(int64(0)), gomock.Any())
 	pub.EXPECT().CommitTx(gomock.Any()).
 		Times(workers)
 
