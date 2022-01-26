@@ -5,10 +5,10 @@ go 1.15
 require (
 	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/ethereum/go-ethereum v1.9.14
+	github.com/ethereum/go-ethereum v1.10.15
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
-	github.com/golang/mock v1.3.1 // indirect
+	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
@@ -27,7 +27,7 @@ require (
 	github.com/smartystreets/assertions v1.0.0 // indirect
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
-	github.com/vulcanize/go-eth-state-node-iterator v0.0.1-alpha
+	github.com/vulcanize/go-eth-state-node-iterator v1.0.0
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/goleak v1.1.11 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
@@ -42,6 +42,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.9.14 => github.com/vulcanize/go-ethereum v1.10.14-statediff-0.0.29
-
-replace github.com/vulcanize/go-eth-state-node-iterator => ../state-node-iterator
+replace github.com/ethereum/go-ethereum v1.10.15 => github.com/vulcanize/go-ethereum v1.10.15-statediff-2.0.0
