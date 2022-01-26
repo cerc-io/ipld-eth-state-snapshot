@@ -30,37 +30,48 @@ const (
 	LVL_DB_PATH       = "LVL_DB_PATH"
 )
 
-// Config is config parameters for DB.
-type Config struct {
+// DBConfig is config parameters for DB.
+type DBConfig struct {
+	Node       ethNode.Info
+	URI        string
+	ConnConfig postgres.ConnectionConfig
+}
+
+// EthConfig is config parameters for the chain.
+type EthConfig struct {
 	LevelDBPath   string
 	AncientDBPath string
-	Node          ethNode.Info
-	connectionURI string
-	DBConfig      postgres.ConnectionConfig
+}
+
+type Config struct {
+	DB  *DBConfig
+	Eth *EthConfig
 }
 
 // Init Initialises config
 func (c *Config) Init() {
-	c.dbInit()
-	viper.BindEnv("leveldb.path", LVL_DB_PATH)
+	c.DB.dbInit()
 	viper.BindEnv("ethereum.nodeID", ETH_NODE_ID)
 	viper.BindEnv("ethereum.clientName", ETH_CLIENT_NAME)
 	viper.BindEnv("ethereum.genesisBlock", ETH_GENESIS_BLOCK)
 	viper.BindEnv("ethereum.networkID", ETH_NETWORK_ID)
-	viper.BindEnv("leveldb.ancient", ANCIENT_DB_PATH)
 
-	c.Node = ethNode.Info{
+	c.DB.Node = ethNode.Info{
 		ID:           viper.GetString("ethereum.nodeID"),
 		ClientName:   viper.GetString("ethereum.clientName"),
 		GenesisBlock: viper.GetString("ethereum.genesisBlock"),
 		NetworkID:    viper.GetString("ethereum.networkID"),
 		ChainID:      viper.GetUint64("ethereum.chainID"),
 	}
-	c.LevelDBPath = viper.GetString("leveldb.path")
-	c.AncientDBPath = viper.GetString("leveldb.ancient")
+
+	viper.BindEnv("leveldb.ancient", ANCIENT_DB_PATH)
+	viper.BindEnv("leveldb.path", LVL_DB_PATH)
+
+	c.Eth.AncientDBPath = viper.GetString("leveldb.ancient")
+	c.Eth.LevelDBPath = viper.GetString("leveldb.path")
 }
 
-func (c *Config) dbInit() {
+func (c *DBConfig) dbInit() {
 	viper.BindEnv("database.name", postgres.DATABASE_NAME)
 	viper.BindEnv("database.hostname", postgres.DATABASE_HOSTNAME)
 	viper.BindEnv("database.port", postgres.DATABASE_PORT)
@@ -78,9 +89,9 @@ func (c *Config) dbInit() {
 	dbParams.User = viper.GetString("database.user")
 	dbParams.Password = viper.GetString("database.password")
 
-	c.connectionURI = postgres.DbConnectionString(dbParams)
-	// DB config
-	c.DBConfig.MaxIdle = viper.GetInt("database.maxIdle")
-	c.DBConfig.MaxOpen = viper.GetInt("database.maxOpen")
-	c.DBConfig.MaxLifetime = viper.GetInt("database.maxLifetime")
+	c.URI = postgres.DbConnectionString(dbParams)
+	// Connection config
+	c.ConnConfig.MaxIdle = viper.GetInt("database.maxIdle")
+	c.ConnConfig.MaxOpen = viper.GetInt("database.maxOpen")
+	c.ConnConfig.MaxLifetime = viper.GetInt("database.maxLifetime")
 }

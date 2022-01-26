@@ -40,18 +40,28 @@ var stateSnapshotCmd = &cobra.Command{
 func stateSnapshot() {
 	snapConfig := &snapshot.Config{}
 	snapConfig.Init()
-	snapshotService, err := snapshot.NewSnapshotService(snapConfig)
+	pgDB, err := snapshot.NewPostgresDB(snapConfig.DB)
+	if err != nil {
+		logWithCommand.Fatal(err)
+	}
+	edb, err := snapshot.NewLevelDB(snapConfig.Eth)
+	if err != nil {
+		logWithCommand.Fatal(err)
+	}
+
+	snapshotService, err := snapshot.NewSnapshotService(edb, snapshot.NewPublisher(pgDB))
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
 	height := viper.GetInt64("snapshot.blockHeight")
+	workers := viper.GetUint("snapshot.workers")
 	if height < 0 {
-		if err := snapshotService.CreateLatestSnapshot(); err != nil {
+		if err := snapshotService.CreateLatestSnapshot(workers); err != nil {
 			logWithCommand.Fatal(err)
 		}
 	} else {
-		uHeight := uint64(height)
-		if err := snapshotService.CreateSnapshot(uHeight); err != nil {
+		params := snapshot.SnapshotParams{Workers: workers, Height: uint64(height)}
+		if err := snapshotService.CreateSnapshot(params); err != nil {
 			logWithCommand.Fatal(err)
 		}
 	}
@@ -64,8 +74,10 @@ func init() {
 	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to primary datastore")
 	stateSnapshotCmd.PersistentFlags().String("ancient-path", "", "path to ancient datastore")
 	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
+	stateSnapshotCmd.PersistentFlags().Int("workers", 0, "number of concurrent workers to use")
 
 	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
 	viper.BindPFlag("leveldb.ancient", stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
 	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
+	viper.BindPFlag("snapshot.workers", stateSnapshotCmd.PersistentFlags().Lookup("workers"))
 }
