@@ -38,8 +38,7 @@ var stateSnapshotCmd = &cobra.Command{
 }
 
 func stateSnapshot() {
-	snapConfig := &snapshot.Config{}
-	snapConfig.Init()
+	snapConfig := snapshot.NewConfig()
 	pgDB, err := snapshot.NewPostgresDB(snapConfig.DB)
 	if err != nil {
 		logWithCommand.Fatal(err)

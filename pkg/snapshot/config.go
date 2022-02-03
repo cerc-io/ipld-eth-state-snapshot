@@ -30,6 +30,12 @@ const (
 	LVL_DB_PATH       = "LVL_DB_PATH"
 )
 
+// Config contains params for both databases the service uses
+type Config struct {
+	DB  *DBConfig
+	Eth *EthConfig
+}
+
 // DBConfig is config parameters for DB.
 type DBConfig struct {
 	Node       ethNode.Info
@@ -43,9 +49,10 @@ type EthConfig struct {
 	AncientDBPath string
 }
 
-type Config struct {
-	DB  *DBConfig
-	Eth *EthConfig
+func NewConfig() *Config {
+	ret := &Config{&DBConfig{}, &EthConfig{}}
+	ret.Init()
+	return ret
 }
 
 // Init Initialises config
