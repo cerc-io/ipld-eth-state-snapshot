@@ -3,15 +3,18 @@ package types
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/jmoiron/sqlx"
 )
 
 type Publisher interface {
-	PublishHeader(header *types.Header) (int64, error)
-	PublishStateNode(node *Node, headerID int64, tx *sqlx.Tx) (int64, error)
-	PublishStorageNode(node *Node, stateID int64, tx *sqlx.Tx) error
-	PublishCode(codeHash common.Hash, codeBytes []byte, tx *sqlx.Tx) error
-	BeginTx() (*sqlx.Tx, error)
-	CommitTx(*sqlx.Tx) error
-	PrepareTxForBatch(tx *sqlx.Tx, batchSize uint) (*sqlx.Tx, error)
+	PublishHeader(header *types.Header) error
+	PublishStateNode(node *Node, headerID string, tx Tx) error
+	PublishStorageNode(node *Node, headerID string, statePath []byte, tx Tx) error
+	PublishCode(codeHash common.Hash, codeBytes []byte, tx Tx) error
+	BeginTx() (Tx, error)
+	PrepareTxForBatch(tx Tx, batchSize uint) (Tx, error)
+}
+
+type Tx interface {
+	Rollback() error
+	Commit() error
 }

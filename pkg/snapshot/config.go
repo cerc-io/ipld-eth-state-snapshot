@@ -16,8 +16,10 @@
 package snapshot
 
 import (
+	"time"
+
+	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	ethNode "github.com/ethereum/go-ethereum/statediff/indexer/node"
-	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
 	"github.com/spf13/viper"
 )
 
@@ -30,40 +32,56 @@ const (
 	LVL_DB_PATH       = "LVL_DB_PATH"
 )
 
+// SnapshotMode specifies the snapshot data output method
+type SnapshotMode string
+
+const (
+	PgSnapshot   SnapshotMode = "postgres"
+	FileSnapshot SnapshotMode = "file"
+)
+
 // Config contains params for both databases the service uses
 type Config struct {
-	DB  *DBConfig
-	Eth *EthConfig
-}
-
-// DBConfig is config parameters for DB.
-type DBConfig struct {
-	Node       ethNode.Info
-	URI        string
-	ConnConfig postgres.ConnectionConfig
+	Eth  *EthConfig
+	DB   *DBConfig
+	File *FileConfig
 }
 
 // EthConfig is config parameters for the chain.
 type EthConfig struct {
 	LevelDBPath   string
 	AncientDBPath string
+	NodeInfo      ethNode.Info
+}
+
+// DBConfig is config parameters for DB.
+type DBConfig struct {
+	URI        string
+	ConnConfig postgres.Config
+}
+
+type FileConfig struct {
+	OutputDir string
 }
 
 func NewConfig() *Config {
-	ret := &Config{&DBConfig{}, &EthConfig{}}
+	ret := &Config{
+		&EthConfig{},
+		&DBConfig{},
+		&FileConfig{},
+	}
 	ret.Init()
 	return ret
 }
 
 // Init Initialises config
 func (c *Config) Init() {
-	c.DB.dbInit()
 	viper.BindEnv("ethereum.nodeID", ETH_NODE_ID)
 	viper.BindEnv("ethereum.clientName", ETH_CLIENT_NAME)
 	viper.BindEnv("ethereum.genesisBlock", ETH_GENESIS_BLOCK)
 	viper.BindEnv("ethereum.networkID", ETH_NETWORK_ID)
 
-	c.DB.Node = ethNode.Info{
+	c.Eth.NodeInfo = ethNode.Info{
 		ID:           viper.GetString("ethereum.nodeID"),
 		ClientName:   viper.GetString("ethereum.clientName"),
 		GenesisBlock: viper.GetString("ethereum.genesisBlock"),
@@ -76,29 +94,38 @@ func (c *Config) Init() {
 
 	c.Eth.AncientDBPath = viper.GetString("leveldb.ancient")
 	c.Eth.LevelDBPath = viper.GetString("leveldb.path")
+
+	c.DB.Init()
+	c.File.Init()
 }
 
-func (c *DBConfig) dbInit() {
-	viper.BindEnv("database.name", postgres.DATABASE_NAME)
-	viper.BindEnv("database.hostname", postgres.DATABASE_HOSTNAME)
-	viper.BindEnv("database.port", postgres.DATABASE_PORT)
-	viper.BindEnv("database.user", postgres.DATABASE_USER)
-	viper.BindEnv("database.password", postgres.DATABASE_PASSWORD)
-	viper.BindEnv("database.maxIdle", postgres.DATABASE_MAX_IDLE_CONNECTIONS)
-	viper.BindEnv("database.maxOpen", postgres.DATABASE_MAX_OPEN_CONNECTIONS)
-	viper.BindEnv("database.maxLifetime", postgres.DATABASE_MAX_CONN_LIFETIME)
+func (c *DBConfig) Init() {
+	viper.BindEnv("database.name", "DATABASE_NAME")
+	viper.BindEnv("database.hostname", "DATABASE_HOSTNAME")
+	viper.BindEnv("database.port", "DATABASE_PORT")
+	viper.BindEnv("database.user", "DATABASE_USER")
+	viper.BindEnv("database.password", "DATABASE_PASSWORD")
+	viper.BindEnv("database.maxIdle", "DATABASE_MAX_IDLE_CONNECTIONS")
+	viper.BindEnv("database.maxOpen", "DATABASE_MAX_OPEN_CONNECTIONS")
+	viper.BindEnv("database.maxLifetime", "DATABASE_MAX_CONN_LIFETIME")
 
-	dbParams := postgres.ConnectionParams{}
+	dbParams := postgres.Config{}
 	// DB params
-	dbParams.Name = viper.GetString("database.name")
+	dbParams.DatabaseName = viper.GetString("database.name")
 	dbParams.Hostname = viper.GetString("database.hostname")
 	dbParams.Port = viper.GetInt("database.port")
-	dbParams.User = viper.GetString("database.user")
+	dbParams.Username = viper.GetString("database.user")
 	dbParams.Password = viper.GetString("database.password")
-
-	c.URI = postgres.DbConnectionString(dbParams)
 	// Connection config
-	c.ConnConfig.MaxIdle = viper.GetInt("database.maxIdle")
-	c.ConnConfig.MaxOpen = viper.GetInt("database.maxOpen")
-	c.ConnConfig.MaxLifetime = viper.GetInt("database.maxLifetime")
+	dbParams.MaxIdle = viper.GetInt("database.maxIdle")
+	dbParams.MaxConns = viper.GetInt("database.maxOpen")
+	dbParams.MaxConnLifetime = time.Duration(viper.GetInt("database.maxLifetime")) * time.Second
+
+	c.ConnConfig = dbParams
+	c.URI = dbParams.DbConnectionString()
+}
+
+func (c *FileConfig) Init() {
+	viper.BindEnv("file.outputDir", "FILE_OUTPUT_DIR")
+	c.OutputDir = viper.GetString("file.outputDir")
 }

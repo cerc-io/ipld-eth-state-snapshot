@@ -28,10 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/statediff/indexer/postgres"
-	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
@@ -39,7 +36,6 @@ import (
 )
 
 var (
-	nullHash          = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
 	emptyNode, _      = rlp.EncodeToBytes([]byte{})
 	emptyCodeHash     = crypto.Keccak256([]byte{})
 	emptyContractRoot = crypto.Keccak256Hash(emptyNode)
@@ -54,14 +50,6 @@ type Service struct {
 	stateDB       state.Database
 	ipfsPublisher Publisher
 	maxBatchSize  uint
-}
-
-func NewPostgresDB(con *DBConfig) (*postgres.DB, error) {
-	pgDB, err := postgres.NewDB(con.URI, con.ConnConfig, con.Node)
-	if err != nil {
-		return nil, err
-	}
-	return pgDB, nil
 }
 
 func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
@@ -97,7 +85,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 	logrus.Infof("head hash: %s head height: %d", hash.Hex(), params.Height)
 
-	headerID, err := s.ipfsPublisher.PublishHeader(header)
+	err := s.ipfsPublisher.PublishHeader(header)
 	if err != nil {
 		return err
 	}
@@ -106,6 +94,8 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	if err != nil {
 		return err
 	}
+	headerID := header.Hash().String()
+
 	if params.Workers > 0 {
 		return s.createSnapshotAsync(t, headerID, params.Workers)
 	} else {
@@ -135,7 +125,7 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 	if it.Leaf() {
 		return nil, nil
 	}
-	if bytes.Equal(nullHash.Bytes(), it.Hash().Bytes()) {
+	if IsNullHash(it.Hash()) {
 		return nil, nil
 	}
 
@@ -163,22 +153,12 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 	}, nil
 }
 
-func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
+func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
 	tx, err := s.ipfsPublisher.BeginTx()
 	if err != nil {
 		return err
 	}
-
-	defer func() {
-		if rec := recover(); rec != nil {
-			shared.Rollback(tx)
-			panic(rec)
-		} else if err != nil {
-			shared.Rollback(tx)
-		} else {
-			err = s.ipfsPublisher.CommitTx(tx)
-		}
-	}()
+	defer func() { err = CommitOrRollback(tx, err) }()
 
 	for it.Next(true) {
 		res, err := resolveNode(it, s.stateDB.TrieDB())
@@ -207,7 +187,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
 			res.node.Key = common.BytesToHash(leafKey)
-			stateID, err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx)
+			err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx)
 			if err != nil {
 				return err
 			}
@@ -226,12 +206,12 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
 				}
 			}
 
-			if tx, err = s.storageSnapshot(account.Root, stateID, tx); err != nil {
+			if tx, err = s.storageSnapshot(account.Root, headerID, res.node.Path, tx); err != nil {
 				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %w", account, err)
 			}
 		case Extension, Branch:
 			res.node.Key = common.BytesToHash([]byte{})
-			if _, err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx); err != nil {
+			if err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx); err != nil {
 				return err
 			}
 		default:
@@ -243,7 +223,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID int64) error {
 }
 
 // Full-trie concurrent snapshot
-func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers uint) error {
+func (s *Service) createSnapshotAsync(tree state.Trie, headerID string, workers uint) error {
 	errors := make(chan error)
 	var wg sync.WaitGroup
 	for _, it := range iter.SubtrieIterators(tree, workers) {
@@ -267,7 +247,7 @@ func (s *Service) createSnapshotAsync(tree state.Trie, headerID int64, workers u
 	return nil
 }
 
-func (s *Service) storageSnapshot(sr common.Hash, stateID int64, tx *sqlx.Tx) (*sqlx.Tx, error) {
+func (s *Service) storageSnapshot(sr common.Hash, headerID string, statePath []byte, tx Tx) (Tx, error) {
 	if bytes.Equal(sr.Bytes(), emptyContractRoot.Bytes()) {
 		return tx, nil
 	}
@@ -311,7 +291,7 @@ func (s *Service) storageSnapshot(sr common.Hash, stateID int64, tx *sqlx.Tx) (*
 		default:
 			return nil, errors.New("unexpected node type")
 		}
-		if err = s.ipfsPublisher.PublishStorageNode(&res.node, stateID, tx); err != nil {
+		if err = s.ipfsPublisher.PublishStorageNode(&res.node, headerID, statePath, tx); err != nil {
 			return nil, err
 		}
 	}
