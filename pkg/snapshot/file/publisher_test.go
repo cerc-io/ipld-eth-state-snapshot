@@ -59,8 +59,6 @@ func verifyFileData(t *testing.T, path string, tbl *snapt.Table) {
 			break
 		}
 		test.NoError(t, err)
-		// _, err = tbl.fromCsvRow(row)
-		// test.NoError(t, err)
 	}
 }
 
@@ -68,8 +66,6 @@ func TestWriting(t *testing.T) {
 	dir := t.TempDir()
 	// tempdir like /tmp/TempFoo/001/, TempFoo defaults to 0700
 	test.NoError(t, os.Chmod(filepath.Dir(dir), 0755))
-	// dir, _ := os.Getwd()
-	// dir += "/dump"
 
 	pub := writeFiles(t, dir)
 

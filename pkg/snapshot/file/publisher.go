@@ -16,7 +16,6 @@
 package publisher
 
 import (
-	// "bufio"
 	"encoding/csv"
 	"fmt"
 	"os"
