@@ -77,10 +77,7 @@ type fileWriter struct {
 // fileWriters wraps the file writers for each output table
 type fileWriters map[*snapt.Table]fileWriter
 
-type fileTx struct {
-	fileWriters
-	// index uint
-}
+type fileTx struct{ fileWriters }
 
 func (tx fileWriters) Commit() error {
 	for _, w := range tx {
@@ -209,13 +206,13 @@ func (p *publisher) PublishHeader(header *types.Header) error {
 
 // PublishStateNode writes the state node to the ipfs backing datastore and adds secondary indexes
 // in the state_cids table
-func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, tx_ snapt.Tx) error {
+func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, snapTx snapt.Tx) error {
 	var stateKey string
 	if !snapt.IsNullHash(node.Key) {
 		stateKey = node.Key.Hex()
 	}
 
-	tx := tx_.(fileTx)
+	tx := snapTx.(fileTx)
 	stateCIDStr, mhKey, err := tx.publishRaw(ipld.MEthStateTrie, node.Value)
 	if err != nil {
 		return err
@@ -235,13 +232,13 @@ func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, tx_ snap
 
 // PublishStorageNode writes the storage node to the ipfs backing pg datastore and adds secondary
 // indexes in the storage_cids table
-func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, statePath []byte, tx_ snapt.Tx) error {
+func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, statePath []byte, snapTx snapt.Tx) error {
 	var storageKey string
 	if !snapt.IsNullHash(node.Key) {
 		storageKey = node.Key.Hex()
 	}
 
-	tx := tx_.(fileTx)
+	tx := snapTx.(fileTx)
 	storageCIDStr, mhKey, err := tx.publishRaw(ipld.MEthStorageTrie, node.Value)
 	if err != nil {
 		return err
@@ -260,14 +257,14 @@ func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, stateP
 }
 
 // PublishCode writes code to the ipfs backing pg datastore
-func (p *publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx_ snapt.Tx) error {
+func (p *publisher) PublishCode(codeHash common.Hash, codeBytes []byte, snapTx snapt.Tx) error {
 	// no codec for code, doesn't matter though since blockstore key is multihash-derived
 	mhKey, err := shared.MultihashKeyFromKeccak256(codeHash)
 	if err != nil {
 		return fmt.Errorf("error deriving multihash key from codehash: %v", err)
 	}
 
-	tx := tx_.(fileTx)
+	tx := snapTx.(fileTx)
 	if err = tx.write(&snapt.TableIPLDBlock, mhKey, codeBytes); err != nil {
 		return fmt.Errorf("error publishing code IPLD: %v", err)
 	}

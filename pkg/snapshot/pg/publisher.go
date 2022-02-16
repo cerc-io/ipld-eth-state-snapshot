@@ -112,11 +112,11 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 		return err
 	}
 
-	tx_, err := p.db.Begin(context.Background())
+	snapTx, err := p.db.Begin(context.Background())
 	if err != nil {
 		return err
 	}
-	tx := pubTx{tx_, nil}
+	tx := pubTx{snapTx, nil}
 	defer func() { err = snapt.CommitOrRollback(tx, err) }()
 
 	if _, err = tx.publishIPLD(headerNode.Cid(), headerNode.RawData()); err != nil {
@@ -132,13 +132,13 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 }
 
 // PublishStateNode writes the state node to the ipfs backing datastore and adds secondary indexes in the state_cids table
-func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, tx_ snapt.Tx) error {
+func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, snapTx snapt.Tx) error {
 	var stateKey string
 	if !snapt.IsNullHash(node.Key) {
 		stateKey = node.Key.Hex()
 	}
 
-	tx := tx_.(pubTx)
+	tx := snapTx.(pubTx)
 	stateCIDStr, mhKey, err := tx.publishRaw(ipld.MEthStateTrie, node.Value)
 	if err != nil {
 		return err
@@ -158,13 +158,13 @@ func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, tx_ snap
 }
 
 // PublishStorageNode writes the storage node to the ipfs backing pg datastore and adds secondary indexes in the storage_cids table
-func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, statePath []byte, tx_ snapt.Tx) error {
+func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, statePath []byte, snapTx snapt.Tx) error {
 	var storageKey string
 	if !snapt.IsNullHash(node.Key) {
 		storageKey = node.Key.Hex()
 	}
 
-	tx := tx_.(pubTx)
+	tx := snapTx.(pubTx)
 	storageCIDStr, mhKey, err := tx.publishRaw(ipld.MEthStorageTrie, node.Value)
 	if err != nil {
 		return err
@@ -184,14 +184,14 @@ func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, stateP
 }
 
 // PublishCode writes code to the ipfs backing pg datastore
-func (p *publisher) PublishCode(codeHash common.Hash, codeBytes []byte, tx_ snapt.Tx) error {
+func (p *publisher) PublishCode(codeHash common.Hash, codeBytes []byte, snapTx snapt.Tx) error {
 	// no codec for code, doesn't matter though since blockstore key is multihash-derived
 	mhKey, err := shared.MultihashKeyFromKeccak256(codeHash)
 	if err != nil {
 		return fmt.Errorf("error deriving multihash key from codehash: %v", err)
 	}
 
-	tx := tx_.(pubTx)
+	tx := snapTx.(pubTx)
 	if _, err = tx.Exec(snapt.TableIPLDBlock.ToInsertStatement(), mhKey, codeBytes); err != nil {
 		return fmt.Errorf("error publishing code IPLD: %v", err)
 	}
@@ -211,8 +211,8 @@ func (p *publisher) PrepareTxForBatch(tx snapt.Tx, maxBatchSize uint) (snapt.Tx,
 			return nil, err
 		}
 
-		tx_, err := p.db.Begin(context.Background())
-		tx = pubTx{Tx: tx_}
+		snapTx, err := p.db.Begin(context.Background())
+		tx = pubTx{Tx: snapTx}
 		if err != nil {
 			return nil, err
 		}
