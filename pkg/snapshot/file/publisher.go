@@ -95,8 +95,7 @@ func newFileWriter(path string) (ret fileWriter, err error) {
 	if err != nil {
 		return
 	}
-	buf := file //bufio.NewWriter(file)
-	ret = fileWriter{csv.NewWriter(buf)}
+	ret = fileWriter{csv.NewWriter(file)}
 	return
 }
 
