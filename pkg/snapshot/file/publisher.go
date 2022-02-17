@@ -75,7 +75,7 @@ type fileWriter struct {
 }
 
 // fileWriters wraps the file writers for each output table
-type fileWriters map[*snapt.Table]fileWriter
+type fileWriters map[string]fileWriter
 
 type fileTx struct{ fileWriters }
 
@@ -102,20 +102,20 @@ func newFileWriter(path string) (ret fileWriter, err error) {
 
 func (tx fileWriters) write(tbl *snapt.Table, args ...interface{}) error {
 	row := tbl.ToCsvRow(args...)
-	return tx[tbl].Write(row)
+	return tx[tbl.Name].Write(row)
 }
 
 func makeFileWriters(dir string, tables []*snapt.Table) (fileWriters, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
-	writers := map[*snapt.Table]fileWriter{}
+	writers := fileWriters{}
 	for _, tbl := range tables {
 		w, err := newFileWriter(TableFile(dir, tbl.Name))
 		if err != nil {
 			return nil, err
 		}
-		writers[tbl] = w
+		writers[tbl.Name] = w
 	}
 	return writers, nil
 }
