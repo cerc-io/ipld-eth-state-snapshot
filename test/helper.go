@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"os"
 	"reflect"
 	"testing"
@@ -45,8 +46,14 @@ func NoError(t *testing.T, err error) {
 }
 
 // ExpectEqual asserts the provided interfaces are deep equal
-func ExpectEqual(t *testing.T, want interface{}, got interface{}) {
+func ExpectEqual(t *testing.T, want, got interface{}) {
 	if !reflect.DeepEqual(want, got) {
-		t.Fatalf("Expected: %v\nActual: %v", want, got)
+		t.Fatalf("Values not equal:\nExpected:\t%v\nActual:\t\t%v", want, got)
+	}
+}
+
+func ExpectEqualBytes(t *testing.T, want, got []byte) {
+	if !bytes.Equal(want, got) {
+		t.Fatalf("Bytes not equal:\nExpected:\t%v\nActual:\t\t%v", want, got)
 	}
 }

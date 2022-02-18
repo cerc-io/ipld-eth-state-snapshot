@@ -44,13 +44,18 @@ func stateSnapshot() {
 		logWithCommand.Fatal(err)
 	}
 
+	recoveryFile := viper.GetString("snapshot.recoveryFile")
+	if recoveryFile == "" {
+		recoveryFile = "./snapshot_recovery"
+	}
+
 	mode := viper.GetString("snapshot.mode")
 	pub, err := snapshot.NewPublisher(snapshot.SnapshotMode(mode), config)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
 
-	snapshotService, err := snapshot.NewSnapshotService(edb, pub)
+	snapshotService, err := snapshot.NewSnapshotService(edb, pub, recoveryFile)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}

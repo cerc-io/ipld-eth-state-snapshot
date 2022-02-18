@@ -50,6 +50,8 @@ type Service struct {
 	stateDB       state.Database
 	ipfsPublisher Publisher
 	maxBatchSize  uint
+	tracker       iteratorTracker
+	recoveryFile  string
 }
 
 func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
@@ -59,12 +61,13 @@ func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
 }
 
 // NewSnapshotService creates Service.
-func NewSnapshotService(edb ethdb.Database, pub Publisher) (*Service, error) {
+func NewSnapshotService(edb ethdb.Database, pub Publisher, recoveryFile string) (*Service, error) {
 	return &Service{
 		ethDB:         edb,
 		stateDB:       state.NewDatabase(edb),
 		ipfsPublisher: pub,
 		maxBatchSize:  defaultBatchSize,
+		recoveryFile:  recoveryFile,
 	}, nil
 }
 
@@ -90,16 +93,49 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		return err
 	}
 
-	t, err := s.stateDB.OpenTrie(header.Root)
+	tree, err := s.stateDB.OpenTrie(header.Root)
 	if err != nil {
 		return err
 	}
 	headerID := header.Hash().String()
+	s.tracker = newTracker(int(params.Workers))
+	go s.tracker.run()
 
-	if params.Workers > 0 {
-		return s.createSnapshotAsync(t, headerID, params.Workers)
+	var iters []trie.NodeIterator
+	// attempt to restore from recovery file if it exists
+	iters, err = s.tracker.restore(tree, s.recoveryFile)
+	if err != nil {
+		return err
+	}
+	if iters != nil {
+		if params.Workers < uint(len(iters)) {
+			return fmt.Errorf(
+				"number of recovered workers (%d) is greater than number configured (%d)",
+				len(iters), params.Workers,
+			)
+		}
+	} else { // nothing to restore
+		if params.Workers > 1 {
+			iters = iter.SubtrieIterators(tree, params.Workers)
+		} else {
+			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
+		}
+		for i, it := range iters {
+			iters[i] = s.tracker.tracked(it)
+		}
+	}
+
+	defer func() {
+		err := s.tracker.haltAndDump(s.recoveryFile)
+		if err != nil {
+			logrus.Error("failed to write recovery file: ", err)
+		}
+	}()
+
+	if len(iters) > 0 {
+		return s.createSnapshotAsync(iters, headerID)
 	} else {
-		return s.createSnapshot(t.NodeIterator(nil), headerID)
+		return s.createSnapshot(iters[0], headerID)
 	}
 	return nil
 }
@@ -176,7 +212,8 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
 
 		switch res.node.NodeType {
 		case Leaf:
-			// if the node is a leaf, decode the account and publish the associated storage trie nodes if there are any
+			// if the node is a leaf, decode the account and publish the associated storage trie
+			// nodes if there are any
 			var account types.StateAccount
 			if err := rlp.DecodeBytes(res.elements[1].([]byte), &account); err != nil {
 				return fmt.Errorf(
@@ -217,34 +254,37 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
 		default:
 			return errors.New("unexpected node type")
 		}
-		return nil
 	}
 	return it.Error()
 }
 
 // Full-trie concurrent snapshot
-func (s *Service) createSnapshotAsync(tree state.Trie, headerID string, workers uint) error {
+func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string) error {
 	errors := make(chan error)
 	var wg sync.WaitGroup
-	for _, it := range iter.SubtrieIterators(tree, workers) {
+	for _, it := range iters {
 		wg.Add(1)
-		go func() {
+		go func(it trie.NodeIterator) {
 			defer wg.Done()
 			if err := s.createSnapshot(it, headerID); err != nil {
 				errors <- err
 			}
-		}()
+		}(it)
 	}
+
+	done := make(chan struct{})
 	go func() {
-		defer close(errors)
 		wg.Wait()
+		done <- struct{}{}
 	}()
 
+	var err error
 	select {
-	case err := <-errors:
-		return err
+	case err = <-errors:
+	case <-done:
+		close(errors)
 	}
-	return nil
+	return err
 }
 
 func (s *Service) storageSnapshot(sr common.Hash, headerID string, statePath []byte, tx Tx) (Tx, error) {
