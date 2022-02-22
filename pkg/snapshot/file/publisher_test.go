@@ -33,12 +33,12 @@ var (
 func writeFiles(t *testing.T, dir string) *publisher {
 	pub, err := NewPublisher(dir, nodeInfo)
 	test.NoError(t, err)
-	test.NoError(t, pub.PublishHeader(&fixt.Header1))
+	test.NoError(t, pub.PublishHeader(&fixt.Block1_Header))
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
 
-	headerID := fixt.Header1.Hash().String()
-	test.NoError(t, pub.PublishStateNode(&fixt.StateNode1, headerID, tx))
+	headerID := fixt.Block1_Header.Hash().String()
+	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, tx))
 
 	test.NoError(t, tx.Commit())
 	return pub
@@ -122,11 +122,11 @@ func TestPgCopy(t *testing.T) {
 		BlockHash string
 	}
 	var header res
-	err = conn.QueryRow(ctx, pgQueryHeader, fixt.Header1.Number.Uint64()).Scan(
+	err = conn.QueryRow(ctx, pgQueryHeader, fixt.Block1_Header.Number.Uint64()).Scan(
 		&header.CID, &header.BlockHash)
 	test.NoError(t, err)
 
-	headerNode, err := ipld.NewEthHeader(&fixt.Header1)
+	headerNode, err := ipld.NewEthHeader(&fixt.Block1_Header)
 	test.ExpectEqual(t, headerNode.Cid().String(), header.CID)
-	test.ExpectEqual(t, fixt.Header1.Hash().String(), header.BlockHash)
+	test.ExpectEqual(t, fixt.Block1_Header.Hash().String(), header.BlockHash)
 }
