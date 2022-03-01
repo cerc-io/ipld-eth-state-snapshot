@@ -22,13 +22,12 @@ import (
 )
 
 // node for holding trie node information
-type node struct {
+type Node struct {
 	NodeType nodeType
 	Path     []byte
 	Key      common.Hash
 	Value    []byte
 }
-type Node = node
 
 // nodeType for explicitly setting type of node
 type nodeType int

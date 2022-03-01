@@ -38,22 +38,25 @@ var stateSnapshotCmd = &cobra.Command{
 }
 
 func stateSnapshot() {
-	snapConfig := snapshot.NewConfig()
-	pgDB, err := snapshot.NewPostgresDB(snapConfig.DB)
-	if err != nil {
-		logWithCommand.Fatal(err)
-	}
-	edb, err := snapshot.NewLevelDB(snapConfig.Eth)
+	config := snapshot.NewConfig()
+	edb, err := snapshot.NewLevelDB(config.Eth)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
 
-	snapshotService, err := snapshot.NewSnapshotService(edb, snapshot.NewPublisher(pgDB))
+	mode := viper.GetString("snapshot.mode")
+	pub, err := snapshot.NewPublisher(snapshot.SnapshotMode(mode), config)
+	if err != nil {
+		logWithCommand.Fatal(err)
+	}
+
+	snapshotService, err := snapshot.NewSnapshotService(edb, pub)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
 	height := viper.GetInt64("snapshot.blockHeight")
 	workers := viper.GetUint("snapshot.workers")
+
 	if height < 0 {
 		if err := snapshotService.CreateLatestSnapshot(workers); err != nil {
 			logWithCommand.Fatal(err)

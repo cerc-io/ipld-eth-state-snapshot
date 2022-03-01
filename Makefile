@@ -6,7 +6,7 @@ mockgen_cmd=mockgen
 mocks: mocks/snapshot/publisher.go
 
 mocks/snapshot/publisher.go: pkg/types/publisher.go
-	$(mockgen_cmd) -package snapshot_mock -destination $@ -source $< Publisher
+	$(mockgen_cmd) -package snapshot_mock -destination $@ -source $< Publisher Tx
 
 clean:
 	rm -f mocks/snapshot/publisher.go
