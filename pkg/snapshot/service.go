@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	. "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
@@ -79,14 +79,14 @@ type SnapshotParams struct {
 func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	// extract header from lvldb and publish to PG-IPFS
 	// hold onto the headerID so that we can link the state nodes to this header
-	logrus.Infof("Creating snapshot at height %d", params.Height)
+	log.Infof("Creating snapshot at height %d", params.Height)
 	hash := rawdb.ReadCanonicalHash(s.ethDB, params.Height)
 	header := rawdb.ReadHeader(s.ethDB, hash, params.Height)
 	if header == nil {
 		return fmt.Errorf("unable to read canonical header at height %d", params.Height)
 	}
 
-	logrus.Infof("head hash: %s head height: %d", hash.Hex(), params.Height)
+	log.Infof("head hash: %s head height: %d", hash.Hex(), params.Height)
 
 	err := s.ipfsPublisher.PublishHeader(header)
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	defer func() {
 		err := s.tracker.haltAndDump(s.recoveryFile)
 		if err != nil {
-			logrus.Error("failed to write recovery file: ", err)
+			log.Error("failed to write recovery file: ", err)
 		}
 	}()
 
@@ -142,7 +142,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 // Create snapshot up to head (ignores height param)
 func (s *Service) CreateLatestSnapshot(workers uint) error {
-	logrus.Info("Creating snapshot at head")
+	log.Info("Creating snapshot at head")
 	hash := rawdb.ReadHeadHeaderHash(s.ethDB)
 	height := rawdb.ReadHeaderNumber(s.ethDB, hash)
 	if height == nil {
@@ -234,7 +234,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
 				codeHash := common.BytesToHash(account.CodeHash)
 				codeBytes := rawdb.ReadCode(s.ethDB, codeHash)
 				if len(codeBytes) == 0 {
-					logrus.Error("Code is missing", "account", common.BytesToHash(it.LeafKey()))
+					log.Error("Code is missing", "account", common.BytesToHash(it.LeafKey()))
 					return errors.New("missing code")
 				}
 
