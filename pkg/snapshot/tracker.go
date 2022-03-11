@@ -4,9 +4,12 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/trie"
+	log "github.com/sirupsen/logrus"
 
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
 )
@@ -25,6 +28,8 @@ func (it *trackedIter) Next(descend bool) bool {
 }
 
 type iteratorTracker struct {
+	recoveryFile string
+
 	startChan chan *trackedIter
 	stopChan  chan *trackedIter
 	started   map[*trackedIter]struct{}
@@ -34,14 +39,27 @@ type iteratorTracker struct {
 	done     chan struct{}
 }
 
-func newTracker(buf int) iteratorTracker {
+func newTracker(file string, buf int) iteratorTracker {
 	return iteratorTracker{
-		startChan: make(chan *trackedIter, buf),
-		stopChan:  make(chan *trackedIter, buf),
-		started:   map[*trackedIter]struct{}{},
-		haltChan:  make(chan struct{}),
-		done:      make(chan struct{}),
+		recoveryFile: file,
+		startChan:    make(chan *trackedIter, buf),
+		stopChan:     make(chan *trackedIter, buf),
+		started:      map[*trackedIter]struct{}{},
+		haltChan:     make(chan struct{}),
+		done:         make(chan struct{}),
 	}
+}
+
+func (tr *iteratorTracker) captureSignal() {
+	sigChan := make(chan os.Signal, 1)
+
+	signal.Notify(sigChan, syscall.SIGINT)
+	go func() {
+		sig := <-sigChan
+		log.Errorf("Signal received (%v), stopping", sig)
+		tr.haltAndDump()
+		os.Exit(1)
+	}()
 }
 
 // listens for starts/stops and manages current state
@@ -68,7 +86,8 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator) (ret *trackedIter) {
 }
 
 // dumps iterator path and bounds to a text file so it can be restored later
-func (tr *iteratorTracker) dump(path string) error {
+func (tr *iteratorTracker) dump() error {
+	log.Info("Dumping recovery state to:", tr.recoveryFile)
 	var rows [][]string
 	for it, _ := range tr.started {
 		var endPath []byte
@@ -80,7 +99,7 @@ func (tr *iteratorTracker) dump(path string) error {
 			fmt.Sprintf("%x", endPath),
 		})
 	}
-	file, err := os.Create(path)
+	file, err := os.Create(tr.recoveryFile)
 	if err != nil {
 		return err
 	}
@@ -91,8 +110,8 @@ func (tr *iteratorTracker) dump(path string) error {
 
 // attempts to read iterator state from file
 // if file doesn't exist, returns an empty slice with no error
-func (tr *iteratorTracker) restore(tree state.Trie, path string) ([]trie.NodeIterator, error) {
-	file, err := os.Open(path)
+func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error) {
+	file, err := os.Open(tr.recoveryFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -124,7 +143,7 @@ func (tr *iteratorTracker) restore(tree state.Trie, path string) ([]trie.NodeIte
 	return ret, nil
 }
 
-func (tr *iteratorTracker) haltAndDump(path string) error {
+func (tr *iteratorTracker) haltAndDump() error {
 	tr.haltChan <- struct{}{}
 	<-tr.done
 
@@ -144,11 +163,11 @@ func (tr *iteratorTracker) haltAndDump(path string) error {
 
 	if len(tr.started) == 0 {
 		// if the tracker state is empty, erase any existing recovery file
-		err := os.Remove(path)
+		err := os.Remove(tr.recoveryFile)
 		if os.IsNotExist(err) {
 			err = nil
 		}
 		return err
 	}
-	return tr.dump(path)
+	return tr.dump()
 }

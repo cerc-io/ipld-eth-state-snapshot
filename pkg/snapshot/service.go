@@ -98,12 +98,13 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		return err
 	}
 	headerID := header.Hash().String()
-	s.tracker = newTracker(int(params.Workers))
+	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
 	go s.tracker.run()
+	go s.tracker.captureSignal()
 
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
-	iters, err = s.tracker.restore(tree, s.recoveryFile)
+	iters, err = s.tracker.restore(tree)
 	if err != nil {
 		return err
 	}
@@ -126,7 +127,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}
 
 	defer func() {
-		err := s.tracker.haltAndDump(s.recoveryFile)
+		err := s.tracker.haltAndDump()
 		if err != nil {
 			log.Error("failed to write recovery file: ", err)
 		}
