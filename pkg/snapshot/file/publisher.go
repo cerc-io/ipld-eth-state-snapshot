@@ -147,14 +147,13 @@ func (p *publisher) txDir(index uint32) string {
 }
 
 func (p *publisher) BeginTx() (snapt.Tx, error) {
-	index := atomic.LoadUint32(&p.txCounter)
+	index := atomic.AddUint32(&p.txCounter, 1) - 1
 	dir := p.txDir(index)
 	writers, err := makeFileWriters(dir, perNodeTables)
 	if err != nil {
 		return nil, err
 	}
 
-	atomic.AddUint32(&p.txCounter, 1)
 	return fileTx{writers}, nil
 }
 
