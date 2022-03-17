@@ -10,7 +10,7 @@ import (
 	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
 )
 
-var Header1 = types.Header{
+var Block1_Header = types.Header{
 	ParentHash:  common.HexToHash("0x6341fd3daf94b748c72ced5a5b26028f2474f5f00d824504e4fa37a75767e177"),
 	UncleHash:   common.HexToHash("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"),
 	Coinbase:    common.HexToAddress("0x0000000000000000000000000000000000000000"),
@@ -29,7 +29,7 @@ var Header1 = types.Header{
 	BaseFee:     nil,
 }
 
-var StateNode1 = snapt.Node{
+var Block1_StateNode0 = snapt.Node{
 	NodeType: 0,
 	Path:     []byte{12, 0},
 	Key:      common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),

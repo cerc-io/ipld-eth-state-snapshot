@@ -147,14 +147,13 @@ func (p *publisher) txDir(index uint32) string {
 }
 
 func (p *publisher) BeginTx() (snapt.Tx, error) {
-	index := atomic.LoadUint32(&p.txCounter)
+	index := atomic.AddUint32(&p.txCounter, 1) - 1
 	dir := p.txDir(index)
 	writers, err := makeFileWriters(dir, perNodeTables)
 	if err != nil {
 		return nil, err
 	}
 
-	atomic.AddUint32(&p.txCounter, 1)
 	return fileTx{writers}, nil
 }
 
@@ -281,13 +280,15 @@ func (p *publisher) PrepareTxForBatch(tx snapt.Tx, maxBatchSize uint) (snapt.Tx,
 func (p *publisher) logNodeCounters() {
 	t := time.NewTicker(logInterval)
 	for range t.C {
-		p.printNodeCounters()
+		p.printNodeCounters("progress")
 	}
 }
 
-func (p *publisher) printNodeCounters() {
-	logrus.Infof("runtime: %s", time.Now().Sub(p.startTime).String())
-	logrus.Infof("processed state nodes: %d", atomic.LoadUint64(&p.stateNodeCounter))
-	logrus.Infof("processed storage nodes: %d", atomic.LoadUint64(&p.storageNodeCounter))
-	logrus.Infof("processed code nodes: %d", atomic.LoadUint64(&p.codeNodeCounter))
+func (p *publisher) printNodeCounters(msg string) {
+	log.WithFields(log.Fields{
+		"runtime":       time.Now().Sub(p.startTime).String(),
+		"state nodes":   atomic.LoadUint64(&p.stateNodeCounter),
+		"storage nodes": atomic.LoadUint64(&p.storageNodeCounter),
+		"code nodes":    atomic.LoadUint64(&p.codeNodeCounter),
+	}).Info(msg)
 }
