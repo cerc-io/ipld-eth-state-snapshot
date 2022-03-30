@@ -9,4 +9,10 @@
     ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
 
 [snapshot]
+    mode = "file"
+    workers = 4
     blockHeight = -1
+    recoveryFile = "recovery_file"
+
+[file]
+    outputDir = "output_dir/"

@@ -31,8 +31,8 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	log "github.com/sirupsen/logrus"
 
-	. "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
+	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
 var (
@@ -55,9 +55,15 @@ type Service struct {
 }
 
 func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
-	return rawdb.NewLevelDBDatabaseWithFreezer(
-		con.LevelDBPath, 1024, 256, con.AncientDBPath, "eth-pg-ipfs-state-snapshot", false,
+	println(con.LevelDBPath)
+	println(con.AncientDBPath)
+	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(
+		con.LevelDBPath, 1024, 256, con.AncientDBPath, "ipld-eth-state-snapshot", true,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create NewLevelDBDatabaseWithFreezer: %s", err)
+	}
+	return edb, nil
 }
 
 // NewSnapshotService creates Service.

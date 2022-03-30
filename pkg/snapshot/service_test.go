@@ -8,10 +8,10 @@ import (
 
 	"github.com/golang/mock/gomock"
 
-	fixt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/fixture"
-	mock "github.com/vulcanize/eth-pg-ipfs-state-snapshot/mocks/snapshot"
-	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
-	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/test"
+	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
+	mock "github.com/vulcanize/ipld-eth-state-snapshot/mocks/snapshot"
+	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
+	"github.com/vulcanize/ipld-eth-state-snapshot/test"
 )
 
 func testConfig(leveldbpath, ancientdbpath string) *Config {

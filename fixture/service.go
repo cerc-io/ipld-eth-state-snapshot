@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
-	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
+	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
 var Block1_Header = types.Header{

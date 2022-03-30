@@ -33,7 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
-	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
+	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
 var _ snapt.Publisher = (*publisher)(nil)

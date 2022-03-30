@@ -33,7 +33,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:              "eth-pg-ipfs-state-snapshot",
+	Use:              "ipld-eth-state-snapshot",
 	PersistentPreRun: initFuncs,
 }
 

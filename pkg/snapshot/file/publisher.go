@@ -34,7 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	nodeinfo "github.com/ethereum/go-ethereum/statediff/indexer/node"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
-	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
+	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
 var _ snapt.Publisher = (*publisher)(nil)
@@ -123,8 +123,8 @@ func makeFileWriters(dir string, tables []*snapt.Table) (fileWriters, error) {
 // with the Postgres COPY command.
 // The output directory will be created if it does not exist.
 func NewPublisher(path string, node nodeinfo.Info) (*publisher, error) {
-	if err := os.MkdirAll(path, 0755); err != nil {
-		return nil, err
+	if err := os.MkdirAll(path, 0777); err != nil {
+		return nil, fmt.Errorf("unable to make MkdirAll for path: %s err: %s", path, err)
 	}
 	writers, err := makeFileWriters(path, perBlockTables)
 	if err != nil {
