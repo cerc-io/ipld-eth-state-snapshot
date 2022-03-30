@@ -285,7 +285,7 @@ func (p *publisher) logNodeCounters() {
 }
 
 func (p *publisher) printNodeCounters(msg string) {
-	log.WithFields(log.Fields{
+	logrus.WithFields(logrus.Fields{
 		"runtime":       time.Now().Sub(p.startTime).String(),
 		"state nodes":   atomic.LoadUint64(&p.stateNodeCounter),
 		"storage nodes": atomic.LoadUint64(&p.storageNodeCounter),

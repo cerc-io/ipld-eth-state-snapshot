@@ -1,7 +1,10 @@
 package mock
 
-import "fmt"
-import "github.com/golang/mock/gomock"
+import (
+	"fmt"
+
+	"github.com/golang/mock/gomock"
+)
 
 type anyOfMatcher struct {
 	values []interface{}
