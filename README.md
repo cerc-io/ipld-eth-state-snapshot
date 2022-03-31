@@ -1,26 +1,35 @@
-# eth-pg-ipfs-state-snapshot
+# ipld-eth-state-snapshot
 
 > Tool for extracting the entire Ethereum state at a particular block height from leveldb into Postgres-backed IPFS
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/vulcanize/eth-pg-ipfs-state-snapshot)](https://goreportcard.com/report/github.com/vulcanize/eth-pg-ipfs-state-snapshot)
+[![Go Report Card](https://goreportcard.com/badge/github.com/vulcanize/ipld-eth-state-snapshot)](https://goreportcard.com/report/github.com/vulcanize/ipld-eth-state-snapshot)
 
 ## Usage 
 
-./eth-pg-ipfs-state-snapshot stateSnapshot --config={path to toml config file}
+./ipld-eth-state-snapshot stateSnapshot --config={path to toml config file}
+
+### Config
 
 Config format:
 
 ```toml
-[database]
-    name     = "vulcanize_public"
-    hostname = "localhost"
-    port     = 5432
-    user     = "postgres"
+[snapshot]
+    mode = "file" # indicates output mode ("postgres" or "file")
+    workers = 4 # degree of concurrency, the state trie is subdivided into sectiosn that are traversed and processed concurrently
+    blockHeight = -1 # blockheight to perform the snapshot at (-1 indicates to use the latest blockheight found in leveldb)
+    recoveryFile = "recovery_file" # specifies a file to output recovery information on error or premature closure
 
 [leveldb]
-   path = "/Users/user/Library/Ethereum/geth/chaindata"
-   ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
+    path = "/Users/user/Library/Ethereum/geth/chaindata" # path to geth leveldb
+    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient" # path to geth ancient database
 
-[snapshot]
-   blockHeight = 0
+[database]
+    name     = "vulcanize_public" # postgres database name
+    hostname = "localhost" # postgres host
+    port     = 5432 # postgres port
+    user     = "postgres" # postgres user
+    password = "" # postgres password
+
+[file]
+    outputDir = "output_dir/" # when operating in 'file' output mode, this is the directory the files are written to
 ```

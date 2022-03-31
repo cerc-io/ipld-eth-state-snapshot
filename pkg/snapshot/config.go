@@ -16,7 +16,10 @@
 package snapshot
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	ethNode "github.com/ethereum/go-ethereum/statediff/indexer/node"
@@ -38,6 +41,8 @@ type SnapshotMode string
 const (
 	PgSnapshot   SnapshotMode = "postgres"
 	FileSnapshot SnapshotMode = "file"
+
+	defaultOutputDir = "./snapshot_output"
 )
 
 // Config contains params for both databases the service uses
@@ -64,18 +69,17 @@ type FileConfig struct {
 	OutputDir string
 }
 
-func NewConfig() *Config {
+func NewConfig(mode SnapshotMode) (*Config, error) {
 	ret := &Config{
 		&EthConfig{},
 		&DBConfig{},
 		&FileConfig{},
 	}
-	ret.Init()
-	return ret
+	return ret, ret.Init(mode)
 }
 
 // Init Initialises config
-func (c *Config) Init() {
+func (c *Config) Init(mode SnapshotMode) error {
 	viper.BindEnv("ethereum.nodeID", ETH_NODE_ID)
 	viper.BindEnv("ethereum.clientName", ETH_CLIENT_NAME)
 	viper.BindEnv("ethereum.genesisBlock", ETH_GENESIS_BLOCK)
@@ -95,8 +99,15 @@ func (c *Config) Init() {
 	c.Eth.AncientDBPath = viper.GetString("leveldb.ancient")
 	c.Eth.LevelDBPath = viper.GetString("leveldb.path")
 
-	c.DB.Init()
-	c.File.Init()
+	switch mode {
+	case FileSnapshot:
+		c.File.Init()
+	case PgSnapshot:
+		c.DB.Init()
+	default:
+		return fmt.Errorf("no output mode specified")
+	}
+	return nil
 }
 
 func (c *DBConfig) Init() {
@@ -125,7 +136,12 @@ func (c *DBConfig) Init() {
 	c.URI = dbParams.DbConnectionString()
 }
 
-func (c *FileConfig) Init() {
+func (c *FileConfig) Init() error {
 	viper.BindEnv("file.outputDir", "FILE_OUTPUT_DIR")
 	c.OutputDir = viper.GetString("file.outputDir")
+	if c.OutputDir == "" {
+		logrus.Infof("no output directory set, using default: %s", defaultOutputDir)
+		c.OutputDir = defaultOutputDir
+	}
+	return nil
 }

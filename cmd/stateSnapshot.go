@@ -16,11 +16,13 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/snapshot"
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot"
 )
 
 // stateSnapshotCmd represents the stateSnapshot command
@@ -29,7 +31,7 @@ var stateSnapshotCmd = &cobra.Command{
 	Short: "Extract the entire Ethereum state from leveldb and publish into PG-IPFS",
 	Long: `Usage
 
-./eth-pg-ipfs-state-snapshot stateSnapshot --config={path to toml config file}`,
+./ipld-eth-state-snapshot stateSnapshot --config={path to toml config file}`,
 	Run: func(cmd *cobra.Command, args []string) {
 		subCommand = cmd.CalledAs()
 		logWithCommand = *logrus.WithField("SubCommand", subCommand)
@@ -38,19 +40,26 @@ var stateSnapshotCmd = &cobra.Command{
 }
 
 func stateSnapshot() {
-	config := snapshot.NewConfig()
+	modeStr := viper.GetString("snapshot.mode")
+	mode := snapshot.SnapshotMode(modeStr)
+	config, err := snapshot.NewConfig(mode)
+	if err != nil {
+		logWithCommand.Fatal("unable to initialize config: %v", err)
+	}
+	logWithCommand.Infof("opening levelDB and ancient data at %s and %s",
+		config.Eth.LevelDBPath, config.Eth.AncientDBPath)
 	edb, err := snapshot.NewLevelDB(config.Eth)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
-
+	height := viper.GetInt64("snapshot.blockHeight")
 	recoveryFile := viper.GetString("snapshot.recoveryFile")
 	if recoveryFile == "" {
-		recoveryFile = "./snapshot_recovery"
+		recoveryFile = fmt.Sprintf("./%d_snapshot_recovery", height)
+		logWithCommand.Infof("no recovery file set, creating default: %s", recoveryFile)
 	}
 
-	mode := viper.GetString("snapshot.mode")
-	pub, err := snapshot.NewPublisher(snapshot.SnapshotMode(mode), config)
+	pub, err := snapshot.NewPublisher(mode, config)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
@@ -59,7 +68,6 @@ func stateSnapshot() {
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
-	height := viper.GetInt64("snapshot.blockHeight")
 	workers := viper.GetUint("snapshot.workers")
 
 	if height < 0 {
@@ -81,10 +89,16 @@ func init() {
 	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to primary datastore")
 	stateSnapshotCmd.PersistentFlags().String("ancient-path", "", "path to ancient datastore")
 	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
-	stateSnapshotCmd.PersistentFlags().Int("workers", 0, "number of concurrent workers to use")
+	stateSnapshotCmd.PersistentFlags().Int("workers", 1, "number of concurrent workers to use")
+	stateSnapshotCmd.PersistentFlags().String("recovery-file", "", "file to recover from a previous iteration")
+	stateSnapshotCmd.PersistentFlags().String("snapshot-mode", "postgres", "output mode for snapshot ('file' or 'postgres')")
+	stateSnapshotCmd.PersistentFlags().String("output-dir", "", "directory for writing ouput to while operating in 'file' mode")
 
 	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
 	viper.BindPFlag("leveldb.ancient", stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
 	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
 	viper.BindPFlag("snapshot.workers", stateSnapshotCmd.PersistentFlags().Lookup("workers"))
+	viper.BindPFlag("snapshot.recoveryFile", stateSnapshotCmd.PersistentFlags().Lookup("recovery-file"))
+	viper.BindPFlag("snapshot.mode", stateSnapshotCmd.PersistentFlags().Lookup("snapshot-mode"))
+	viper.BindPFlag("file.outputDir", stateSnapshotCmd.PersistentFlags().Lookup("output-dir"))
 }

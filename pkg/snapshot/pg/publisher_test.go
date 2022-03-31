@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/jackc/pgx/v4"
 
-	fixt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/fixture"
-	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
-	"github.com/vulcanize/eth-pg-ipfs-state-snapshot/test"
+	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
+	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
+	"github.com/vulcanize/ipld-eth-state-snapshot/test"
 )
 
 var (

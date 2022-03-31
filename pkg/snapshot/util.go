@@ -6,9 +6,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 
-	file "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/snapshot/file"
-	pg "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/snapshot/pg"
-	snapt "github.com/vulcanize/eth-pg-ipfs-state-snapshot/pkg/types"
+	file "github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/file"
+	pg "github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/pg"
+	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
 func NewPublisher(mode SnapshotMode, config *Config) (snapt.Publisher, error) {
