@@ -94,11 +94,11 @@ func init() {
 	stateSnapshotCmd.PersistentFlags().String("snapshot-mode", "postgres", "output mode for snapshot ('file' or 'postgres')")
 	stateSnapshotCmd.PersistentFlags().String("output-dir", "", "directory for writing ouput to while operating in 'file' mode")
 
-	viper.BindPFlag("leveldb.path", stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
-	viper.BindPFlag("leveldb.ancient", stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
-	viper.BindPFlag("snapshot.blockHeight", stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
-	viper.BindPFlag("snapshot.workers", stateSnapshotCmd.PersistentFlags().Lookup("workers"))
-	viper.BindPFlag("snapshot.recoveryFile", stateSnapshotCmd.PersistentFlags().Lookup("recovery-file"))
-	viper.BindPFlag("snapshot.mode", stateSnapshotCmd.PersistentFlags().Lookup("snapshot-mode"))
-	viper.BindPFlag("file.outputDir", stateSnapshotCmd.PersistentFlags().Lookup("output-dir"))
+	viper.BindPFlag(snapshot.LVL_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
+	viper.BindPFlag(snapshot.ANCIENT_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
+	viper.BindPFlag(snapshot.SNAPSHOT_BLOCK_HEIGHT_TOML, stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
+	viper.BindPFlag(snapshot.SNAPSHOT_WORKERS_TOML, stateSnapshotCmd.PersistentFlags().Lookup("workers"))
+	viper.BindPFlag(snapshot.SNAPSHOT_RECOVERY_FILE_TOML, stateSnapshotCmd.PersistentFlags().Lookup("recovery-file"))
+	viper.BindPFlag(snapshot.SNAPSHOT_MODE_TOML, stateSnapshotCmd.PersistentFlags().Lookup("snapshot-mode"))
+	viper.BindPFlag(snapshot.FILE_OUTPUT_DIR_TOML, stateSnapshotCmd.PersistentFlags().Lookup("output-dir"))
 }

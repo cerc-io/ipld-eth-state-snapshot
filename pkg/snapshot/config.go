@@ -26,15 +26,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	ANCIENT_DB_PATH   = "ANCIENT_DB_PATH"
-	ETH_CLIENT_NAME   = "ETH_CLIENT_NAME"
-	ETH_GENESIS_BLOCK = "ETH_GENESIS_BLOCK"
-	ETH_NETWORK_ID    = "ETH_NETWORK_ID"
-	ETH_NODE_ID       = "ETH_NODE_ID"
-	LVL_DB_PATH       = "LVL_DB_PATH"
-)
-
 // SnapshotMode specifies the snapshot data output method
 type SnapshotMode string
 
@@ -80,24 +71,25 @@ func NewConfig(mode SnapshotMode) (*Config, error) {
 
 // Init Initialises config
 func (c *Config) Init(mode SnapshotMode) error {
-	viper.BindEnv("ethereum.nodeID", ETH_NODE_ID)
-	viper.BindEnv("ethereum.clientName", ETH_CLIENT_NAME)
-	viper.BindEnv("ethereum.genesisBlock", ETH_GENESIS_BLOCK)
-	viper.BindEnv("ethereum.networkID", ETH_NETWORK_ID)
+	viper.BindEnv(ETH_NODE_ID_TOML, ETH_NODE_ID)
+	viper.BindEnv(ETH_CLIENT_NAME_TOML, ETH_CLIENT_NAME)
+	viper.BindEnv(ETH_GENESIS_BLOCK_TOML, ETH_GENESIS_BLOCK)
+	viper.BindEnv(ETH_NETWORK_ID_TOML, ETH_NETWORK_ID)
+	viper.BindEnv(ETH_CHAIN_ID_TOML, ETH_CHAIN_ID)
 
 	c.Eth.NodeInfo = ethNode.Info{
-		ID:           viper.GetString("ethereum.nodeID"),
-		ClientName:   viper.GetString("ethereum.clientName"),
-		GenesisBlock: viper.GetString("ethereum.genesisBlock"),
-		NetworkID:    viper.GetString("ethereum.networkID"),
-		ChainID:      viper.GetUint64("ethereum.chainID"),
+		ID:           viper.GetString(ETH_NODE_ID_TOML),
+		ClientName:   viper.GetString(ETH_CLIENT_NAME_TOML),
+		GenesisBlock: viper.GetString(ETH_GENESIS_BLOCK_TOML),
+		NetworkID:    viper.GetString(ETH_NETWORK_ID_TOML),
+		ChainID:      viper.GetUint64(ETH_CHAIN_ID_TOML),
 	}
 
-	viper.BindEnv("leveldb.ancient", ANCIENT_DB_PATH)
-	viper.BindEnv("leveldb.path", LVL_DB_PATH)
+	viper.BindEnv(ANCIENT_DB_PATH_TOML, ANCIENT_DB_PATH)
+	viper.BindEnv(LVL_DB_PATH_TOML, LVL_DB_PATH)
 
-	c.Eth.AncientDBPath = viper.GetString("leveldb.ancient")
-	c.Eth.LevelDBPath = viper.GetString("leveldb.path")
+	c.Eth.AncientDBPath = viper.GetString(ANCIENT_DB_PATH_TOML)
+	c.Eth.LevelDBPath = viper.GetString(LVL_DB_PATH_TOML)
 
 	switch mode {
 	case FileSnapshot:
@@ -111,34 +103,34 @@ func (c *Config) Init(mode SnapshotMode) error {
 }
 
 func (c *DBConfig) Init() {
-	viper.BindEnv("database.name", "DATABASE_NAME")
-	viper.BindEnv("database.hostname", "DATABASE_HOSTNAME")
-	viper.BindEnv("database.port", "DATABASE_PORT")
-	viper.BindEnv("database.user", "DATABASE_USER")
-	viper.BindEnv("database.password", "DATABASE_PASSWORD")
-	viper.BindEnv("database.maxIdle", "DATABASE_MAX_IDLE_CONNECTIONS")
-	viper.BindEnv("database.maxOpen", "DATABASE_MAX_OPEN_CONNECTIONS")
-	viper.BindEnv("database.maxLifetime", "DATABASE_MAX_CONN_LIFETIME")
+	viper.BindEnv(DATABASE_NAME_TOML, DATABASE_NAME)
+	viper.BindEnv(DATABASE_HOSTNAME_TOML, DATABASE_HOSTNAME)
+	viper.BindEnv(DATABASE_PORT_TOML, DATABASE_PORT)
+	viper.BindEnv(DATABASE_USER_TOML, DATABASE_USER)
+	viper.BindEnv(DATABASE_PASSWORD_TOML, DATABASE_PASSWORD)
+	viper.BindEnv(DATABASE_MAX_IDLE_CONNECTIONS_TOML, DATABASE_MAX_IDLE_CONNECTIONS)
+	viper.BindEnv(DATABASE_MAX_OPEN_CONNECTIONS_TOML, DATABASE_MAX_OPEN_CONNECTIONS)
+	viper.BindEnv(DATABASE_MAX_CONN_LIFETIME_TOML, DATABASE_MAX_CONN_LIFETIME)
 
 	dbParams := postgres.Config{}
 	// DB params
-	dbParams.DatabaseName = viper.GetString("database.name")
-	dbParams.Hostname = viper.GetString("database.hostname")
-	dbParams.Port = viper.GetInt("database.port")
-	dbParams.Username = viper.GetString("database.user")
-	dbParams.Password = viper.GetString("database.password")
+	dbParams.DatabaseName = viper.GetString(DATABASE_NAME_TOML)
+	dbParams.Hostname = viper.GetString(DATABASE_HOSTNAME_TOML)
+	dbParams.Port = viper.GetInt(DATABASE_PORT_TOML)
+	dbParams.Username = viper.GetString(DATABASE_USER_TOML)
+	dbParams.Password = viper.GetString(DATABASE_PASSWORD_TOML)
 	// Connection config
-	dbParams.MaxIdle = viper.GetInt("database.maxIdle")
-	dbParams.MaxConns = viper.GetInt("database.maxOpen")
-	dbParams.MaxConnLifetime = time.Duration(viper.GetInt("database.maxLifetime")) * time.Second
+	dbParams.MaxIdle = viper.GetInt(DATABASE_MAX_IDLE_CONNECTIONS_TOML)
+	dbParams.MaxConns = viper.GetInt(DATABASE_MAX_OPEN_CONNECTIONS_TOML)
+	dbParams.MaxConnLifetime = time.Duration(viper.GetInt(DATABASE_MAX_CONN_LIFETIME_TOML)) * time.Second
 
 	c.ConnConfig = dbParams
 	c.URI = dbParams.DbConnectionString()
 }
 
 func (c *FileConfig) Init() error {
-	viper.BindEnv("file.outputDir", "FILE_OUTPUT_DIR")
-	c.OutputDir = viper.GetString("file.outputDir")
+	viper.BindEnv(FILE_OUTPUT_DIR_TOML, FILE_OUTPUT_DIR)
+	c.OutputDir = viper.GetString(FILE_OUTPUT_DIR_TOML)
 	if c.OutputDir == "" {
 		logrus.Infof("no output directory set, using default: %s", defaultOutputDir)
 		c.OutputDir = defaultOutputDir

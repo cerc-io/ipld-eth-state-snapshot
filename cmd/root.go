@@ -21,6 +21,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -46,7 +48,7 @@ func Execute() {
 }
 
 func initFuncs(cmd *cobra.Command, args []string) {
-	logfile := viper.GetString("logfile")
+	logfile := viper.GetString("log.file")
 	if logfile != "" {
 		file, err := os.OpenFile(logfile,
 			os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -84,7 +86,7 @@ func init() {
 	viper.AutomaticEnv()
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file location")
-	rootCmd.PersistentFlags().String("logfile", "", "file path for logging")
+	rootCmd.PersistentFlags().String("log-file", "", "file path for logging")
 	rootCmd.PersistentFlags().String("database-name", "vulcanize_public", "database name")
 	rootCmd.PersistentFlags().Int("database-port", 5432, "database port")
 	rootCmd.PersistentFlags().String("database-hostname", "localhost", "database hostname")
@@ -92,13 +94,13 @@ func init() {
 	rootCmd.PersistentFlags().String("database-password", "", "database password")
 	rootCmd.PersistentFlags().String("log-level", log.InfoLevel.String(), "Log level (trace, debug, info, warn, error, fatal, panic")
 
-	viper.BindPFlag("logfile", rootCmd.PersistentFlags().Lookup("logfile"))
-	viper.BindPFlag("database.name", rootCmd.PersistentFlags().Lookup("database-name"))
-	viper.BindPFlag("database.port", rootCmd.PersistentFlags().Lookup("database-port"))
-	viper.BindPFlag("database.hostname", rootCmd.PersistentFlags().Lookup("database-hostname"))
-	viper.BindPFlag("database.user", rootCmd.PersistentFlags().Lookup("database-user"))
-	viper.BindPFlag("database.password", rootCmd.PersistentFlags().Lookup("database-password"))
-	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
+	viper.BindPFlag(snapshot.LOGRUS_FILE_TOML, rootCmd.PersistentFlags().Lookup("log-file"))
+	viper.BindPFlag(snapshot.DATABASE_NAME_TOML, rootCmd.PersistentFlags().Lookup("database-name"))
+	viper.BindPFlag(snapshot.DATABASE_PORT_TOML, rootCmd.PersistentFlags().Lookup("database-port"))
+	viper.BindPFlag(snapshot.DATABASE_HOSTNAME_TOML, rootCmd.PersistentFlags().Lookup("database-hostname"))
+	viper.BindPFlag(snapshot.DATABASE_USER_TOML, rootCmd.PersistentFlags().Lookup("database-user"))
+	viper.BindPFlag(snapshot.DATABASE_PASSWORD_TOML, rootCmd.PersistentFlags().Lookup("database-password"))
+	viper.BindPFlag(snapshot.LOGRUS_LEVEL_TOML, rootCmd.PersistentFlags().Lookup("log-level"))
 }
 
 func initConfig() {
