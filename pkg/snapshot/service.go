@@ -140,11 +140,10 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}()
 
 	if len(iters) > 0 {
-		return s.createSnapshotAsync(iters, headerID)
+		return s.createSnapshotAsync(iters, headerID, params.Height)
 	} else {
-		return s.createSnapshot(iters[0], headerID)
+		return s.createSnapshot(iters[0], headerID, params.Height)
 	}
-	return nil
 }
 
 // Create snapshot up to head (ignores height param)
@@ -196,7 +195,7 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 	}, nil
 }
 
-func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
+func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height uint64) error {
 	tx, err := s.ipfsPublisher.BeginTx()
 	if err != nil {
 		return err
@@ -231,7 +230,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
 			encodedPath := trie.HexToCompact(valueNodePath)
 			leafKey := encodedPath[1:]
 			res.node.Key = common.BytesToHash(leafKey)
-			err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx)
+			err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx)
 			if err != nil {
 				return err
 			}
@@ -245,17 +244,17 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
 					return errors.New("missing code")
 				}
 
-				if err = s.ipfsPublisher.PublishCode(codeHash, codeBytes, tx); err != nil {
+				if err = s.ipfsPublisher.PublishCode(height, codeHash, codeBytes, tx); err != nil {
 					return err
 				}
 			}
 
-			if tx, err = s.storageSnapshot(account.Root, headerID, res.node.Path, tx); err != nil {
+			if tx, err = s.storageSnapshot(account.Root, headerID, height, res.node.Path, tx); err != nil {
 				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %w", account, err)
 			}
 		case Extension, Branch:
 			res.node.Key = common.BytesToHash([]byte{})
-			if err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, tx); err != nil {
+			if err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx); err != nil {
 				return err
 			}
 		default:
@@ -266,14 +265,14 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string) error {
 }
 
 // Full-trie concurrent snapshot
-func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string) error {
+func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string, height uint64) error {
 	errors := make(chan error)
 	var wg sync.WaitGroup
 	for _, it := range iters {
 		wg.Add(1)
 		go func(it trie.NodeIterator) {
 			defer wg.Done()
-			if err := s.createSnapshot(it, headerID); err != nil {
+			if err := s.createSnapshot(it, headerID, height); err != nil {
 				errors <- err
 			}
 		}(it)
@@ -294,7 +293,7 @@ func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string
 	return err
 }
 
-func (s *Service) storageSnapshot(sr common.Hash, headerID string, statePath []byte, tx Tx) (Tx, error) {
+func (s *Service) storageSnapshot(sr common.Hash, headerID string, height uint64, statePath []byte, tx Tx) (Tx, error) {
 	if bytes.Equal(sr.Bytes(), emptyContractRoot.Bytes()) {
 		return tx, nil
 	}
@@ -338,7 +337,7 @@ func (s *Service) storageSnapshot(sr common.Hash, headerID string, statePath []b
 		default:
 			return nil, errors.New("unexpected node type")
 		}
-		if err = s.ipfsPublisher.PublishStorageNode(&res.node, headerID, statePath, tx); err != nil {
+		if err = s.ipfsPublisher.PublishStorageNode(&res.node, headerID, height, statePath, tx); err != nil {
 			return nil, err
 		}
 	}

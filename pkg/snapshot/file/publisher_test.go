@@ -38,7 +38,7 @@ func writeFiles(t *testing.T, dir string) *publisher {
 	test.NoError(t, err)
 
 	headerID := fixt.Block1_Header.Hash().String()
-	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, tx))
+	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, fixt.Block1_Header.Number.Uint64(), tx))
 
 	test.NoError(t, tx.Commit())
 	return pub
@@ -127,6 +127,7 @@ func TestPgCopy(t *testing.T) {
 	test.NoError(t, err)
 
 	headerNode, err := ipld.NewEthHeader(&fixt.Block1_Header)
+	test.NoError(t, err)
 	test.ExpectEqual(t, headerNode.Cid().String(), header.CID)
 	test.ExpectEqual(t, fixt.Block1_Header.Hash().String(), header.BlockHash)
 }

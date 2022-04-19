@@ -36,7 +36,7 @@ func writeData(t *testing.T) *publisher {
 	test.NoError(t, err)
 
 	headerID := fixt.Block1_Header.Hash().String()
-	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, tx))
+	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, fixt.Block1_Header.Number.Uint64(), tx))
 
 	test.NoError(t, tx.Commit())
 	return pub
