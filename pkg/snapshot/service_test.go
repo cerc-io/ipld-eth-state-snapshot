@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"errors"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,7 +44,7 @@ func TestCreateSnapshot(t *testing.T) {
 			Times(workers)
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).
 			AnyTimes()
-		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any()).
+		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Times(len(fixt.Block1_StateNodePaths))
 
 		// TODO: fixtures for storage node
@@ -78,7 +79,7 @@ func TestCreateSnapshot(t *testing.T) {
 	}
 }
 
-func failingPublishStateNode(_ *snapt.Node, _ string, _ snapt.Tx) error {
+func failingPublishStateNode(_ *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
 	return errors.New("failingPublishStateNode")
 }
 
@@ -88,7 +89,7 @@ func TestRecovery(t *testing.T) {
 		pub.EXPECT().PublishHeader(gomock.Any()).AnyTimes()
 		pub.EXPECT().BeginTx().Return(tx, nil).AnyTimes()
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
-		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any()).
+		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Times(workers).
 			DoAndReturn(failingPublishStateNode)
 		tx.EXPECT().Commit().AnyTimes()
@@ -116,7 +117,7 @@ func TestRecovery(t *testing.T) {
 			t.Fatal("cannot stat recovery file:", err)
 		}
 
-		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 		err = service.CreateSnapshot(params)
 		if err != nil {
 			t.Fatal(err)

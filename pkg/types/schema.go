@@ -3,10 +3,11 @@ package types
 var TableIPLDBlock = Table{
 	`public.blocks`,
 	[]column{
+		{"block_number", bigint},
 		{"key", text},
 		{"data", bytea},
 	},
-	`ON CONFLICT (key) DO NOTHING`,
+	`ON CONFLICT DO NOTHING`,
 }
 
 var TableNodeInfo = Table{
@@ -40,12 +41,13 @@ var TableHeader = Table{
 		{"times_validated", integer},
 		{"coinbase", varchar},
 	},
-	"ON CONFLICT (block_hash) DO UPDATE SET (parent_hash, cid, td, node_id, reward, state_root, tx_root, receipt_root, uncle_root, bloom, timestamp, mh_key, times_validated, coinbase) = (EXCLUDED.parent_hash, EXCLUDED.cid, EXCLUDED.td, EXCLUDED.node_id, EXCLUDED.reward, EXCLUDED.state_root, EXCLUDED.tx_root, EXCLUDED.receipt_root, EXCLUDED.uncle_root, EXCLUDED.bloom, EXCLUDED.timestamp, EXCLUDED.mh_key, eth.header_cids.times_validated + 1, EXCLUDED.coinbase)",
+	"ON CONFLICT DO NOTHING",
 }
 
 var TableStateNode = Table{
 	"eth.state_cids",
 	[]column{
+		{"block_number", bigint},
 		{"header_id", varchar},
 		{"state_leaf_key", varchar},
 		{"cid", text},
@@ -54,12 +56,13 @@ var TableStateNode = Table{
 		{"diff", boolean},
 		{"mh_key", text},
 	},
-	`ON CONFLICT (header_id, state_path) DO UPDATE SET (state_leaf_key, cid, node_type, diff, mh_key) = (EXCLUDED.state_leaf_key, EXCLUDED.cid, EXCLUDED.node_type, EXCLUDED.diff, EXCLUDED.mh_key)`,
+	`ON CONFLICT DO NOTHING`,
 }
 
 var TableStorageNode = Table{
 	"eth.storage_cids",
 	[]column{
+		{"block_number", bigint},
 		{"header_id", varchar},
 		{"state_path", bytea},
 		{"storage_leaf_key", varchar},
@@ -69,5 +72,5 @@ var TableStorageNode = Table{
 		{"diff", boolean},
 		{"mh_key", text},
 	},
-	"ON CONFLICT (header_id, state_path, storage_path) DO UPDATE SET (storage_leaf_key, cid, node_type, diff, mh_key) = (EXCLUDED.storage_leaf_key, EXCLUDED.cid, EXCLUDED.node_type, EXCLUDED.diff, EXCLUDED.mh_key)",
+	"ON CONFLICT DO NOTHING",
 }
