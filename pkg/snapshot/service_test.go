@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"errors"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,7 +79,7 @@ func TestCreateSnapshot(t *testing.T) {
 	}
 }
 
-func failingPublishStateNode(_ *snapt.Node, _ string, _ uint64, _ snapt.Tx) error {
+func failingPublishStateNode(_ *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
 	return errors.New("failingPublishStateNode")
 }
 

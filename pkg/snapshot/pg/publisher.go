@@ -18,6 +18,7 @@ package pg
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync/atomic"
 	"time"
 
@@ -87,7 +88,7 @@ func (p *publisher) BeginTx() (snapt.Tx, error) {
 
 // PublishRaw derives a cid from raw bytes and provided codec and multihash type, and writes it to the db tx
 // returns the CID and blockstore prefixed multihash key
-func (tx pubTx) publishRaw(codec uint64, raw []byte, height uint64) (cid, prefixedKey string, err error) {
+func (tx pubTx) publishRaw(codec uint64, raw []byte, height *big.Int) (cid, prefixedKey string, err error) {
 	c, err := ipld.RawdataToCid(codec, raw, multihash.KECCAK_256)
 	if err != nil {
 		return
@@ -97,10 +98,10 @@ func (tx pubTx) publishRaw(codec uint64, raw []byte, height uint64) (cid, prefix
 	return
 }
 
-func (tx pubTx) publishIPLD(c cid.Cid, raw []byte, height uint64) (string, error) {
+func (tx pubTx) publishIPLD(c cid.Cid, raw []byte, height *big.Int) (string, error) {
 	dbKey := dshelp.MultihashToDsKey(c.Hash())
 	prefixedKey := blockstore.BlockPrefix.String() + dbKey.String()
-	_, err := tx.Exec(snapt.TableIPLDBlock.ToInsertStatement(), height, prefixedKey, raw)
+	_, err := tx.Exec(snapt.TableIPLDBlock.ToInsertStatement(), height.Uint64(), prefixedKey, raw)
 	return prefixedKey, err
 }
 
@@ -118,7 +119,7 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 	tx := pubTx{snapTx, nil}
 	defer func() { err = snapt.CommitOrRollback(tx, err) }()
 
-	if _, err = tx.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number.Uint64()); err != nil {
+	if _, err = tx.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
 		return err
 	}
 
@@ -131,7 +132,7 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 }
 
 // PublishStateNode writes the state node to the ipfs backing datastore and adds secondary indexes in the state_cids table
-func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, height uint64, snapTx snapt.Tx) error {
+func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, height *big.Int, snapTx snapt.Tx) error {
 	var stateKey string
 	if !snapt.IsNullHash(node.Key) {
 		stateKey = node.Key.Hex()
@@ -144,7 +145,7 @@ func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, height u
 	}
 
 	_, err = tx.Exec(snapt.TableStateNode.ToInsertStatement(),
-		height, headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false, mhKey)
+		height.Uint64(), headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false, mhKey)
 	if err != nil {
 		return err
 	}
@@ -157,7 +158,7 @@ func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, height u
 }
 
 // PublishStorageNode writes the storage node to the ipfs backing pg datastore and adds secondary indexes in the storage_cids table
-func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, height uint64, statePath []byte, snapTx snapt.Tx) error {
+func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, height *big.Int, statePath []byte, snapTx snapt.Tx) error {
 	var storageKey string
 	if !snapt.IsNullHash(node.Key) {
 		storageKey = node.Key.Hex()
@@ -170,7 +171,7 @@ func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, height
 	}
 
 	_, err = tx.Exec(snapt.TableStorageNode.ToInsertStatement(),
-		height, headerID, statePath, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
+		height.Uint64(), headerID, statePath, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
 	if err != nil {
 		return err
 	}
@@ -183,7 +184,7 @@ func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, height
 }
 
 // PublishCode writes code to the ipfs backing pg datastore
-func (p *publisher) PublishCode(height uint64, codeHash common.Hash, codeBytes []byte, snapTx snapt.Tx) error {
+func (p *publisher) PublishCode(height *big.Int, codeHash common.Hash, codeBytes []byte, snapTx snapt.Tx) error {
 	// no codec for code, doesn't matter though since blockstore key is multihash-derived
 	mhKey, err := shared.MultihashKeyFromKeccak256(codeHash)
 	if err != nil {
@@ -191,7 +192,7 @@ func (p *publisher) PublishCode(height uint64, codeHash common.Hash, codeBytes [
 	}
 
 	tx := snapTx.(pubTx)
-	if _, err = tx.Exec(snapt.TableIPLDBlock.ToInsertStatement(), height, mhKey, codeBytes); err != nil {
+	if _, err = tx.Exec(snapt.TableIPLDBlock.ToInsertStatement(), height.Uint64(), mhKey, codeBytes); err != nil {
 		return fmt.Errorf("error publishing code IPLD: %v", err)
 	}
 

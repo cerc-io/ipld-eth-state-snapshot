@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -140,9 +141,9 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}()
 
 	if len(iters) > 0 {
-		return s.createSnapshotAsync(iters, headerID, params.Height)
+		return s.createSnapshotAsync(iters, headerID, new(big.Int).SetUint64(params.Height))
 	} else {
-		return s.createSnapshot(iters[0], headerID, params.Height)
+		return s.createSnapshot(iters[0], headerID, new(big.Int).SetUint64(params.Height))
 	}
 }
 
@@ -195,7 +196,7 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 	}, nil
 }
 
-func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height uint64) error {
+func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *big.Int) error {
 	tx, err := s.ipfsPublisher.BeginTx()
 	if err != nil {
 		return err
@@ -265,7 +266,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height u
 }
 
 // Full-trie concurrent snapshot
-func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string, height uint64) error {
+func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string, height *big.Int) error {
 	errors := make(chan error)
 	var wg sync.WaitGroup
 	for _, it := range iters {
@@ -293,7 +294,7 @@ func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string
 	return err
 }
 
-func (s *Service) storageSnapshot(sr common.Hash, headerID string, height uint64, statePath []byte, tx Tx) (Tx, error) {
+func (s *Service) storageSnapshot(sr common.Hash, headerID string, height *big.Int, statePath []byte, tx Tx) (Tx, error) {
 	if bytes.Equal(sr.Bytes(), emptyContractRoot.Bytes()) {
 		return tx, nil
 	}

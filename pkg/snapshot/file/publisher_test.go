@@ -38,7 +38,7 @@ func writeFiles(t *testing.T, dir string) *publisher {
 	test.NoError(t, err)
 
 	headerID := fixt.Block1_Header.Hash().String()
-	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, fixt.Block1_Header.Number.Uint64(), tx))
+	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, fixt.Block1_Header.Number, tx))
 
 	test.NoError(t, tx.Commit())
 	return pub
