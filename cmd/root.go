@@ -21,11 +21,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot"
 )
 
 var (
@@ -48,7 +48,7 @@ func Execute() {
 }
 
 func initFuncs(cmd *cobra.Command, args []string) {
-	logfile := viper.GetString("log.file")
+	logfile := viper.GetString(snapshot.LOGRUS_FILE_TOML)
 	if logfile != "" {
 		file, err := os.OpenFile(logfile,
 			os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -68,7 +68,7 @@ func initFuncs(cmd *cobra.Command, args []string) {
 }
 
 func logLevel() error {
-	lvl, err := log.ParseLevel(viper.GetString("log.level"))
+	lvl, err := log.ParseLevel(viper.GetString(snapshot.LOGRUS_LEVEL_TOML))
 	if err != nil {
 		return err
 	}
@@ -86,21 +86,21 @@ func init() {
 	viper.AutomaticEnv()
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file location")
-	rootCmd.PersistentFlags().String("log-file", "", "file path for logging")
-	rootCmd.PersistentFlags().String("database-name", "vulcanize_public", "database name")
-	rootCmd.PersistentFlags().Int("database-port", 5432, "database port")
-	rootCmd.PersistentFlags().String("database-hostname", "localhost", "database hostname")
-	rootCmd.PersistentFlags().String("database-user", "", "database user")
-	rootCmd.PersistentFlags().String("database-password", "", "database password")
-	rootCmd.PersistentFlags().String("log-level", log.InfoLevel.String(), "Log level (trace, debug, info, warn, error, fatal, panic")
+	rootCmd.PersistentFlags().String(snapshot.LOGRUS_FILE_CLI, "", "file path for logging")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_NAME_CLI, "vulcanize_public", "database name")
+	rootCmd.PersistentFlags().Int(snapshot.DATABASE_PORT_CLI, 5432, "database port")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_HOSTNAME_CLI, "localhost", "database hostname")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_USER_CLI, "", "database user")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_PASSWORD_CLI, "", "database password")
+	rootCmd.PersistentFlags().String(snapshot.LOGRUS_LEVEL_CLI, log.InfoLevel.String(), "log level (trace, debug, info, warn, error, fatal, panic")
 
-	viper.BindPFlag(snapshot.LOGRUS_FILE_TOML, rootCmd.PersistentFlags().Lookup("log-file"))
-	viper.BindPFlag(snapshot.DATABASE_NAME_TOML, rootCmd.PersistentFlags().Lookup("database-name"))
-	viper.BindPFlag(snapshot.DATABASE_PORT_TOML, rootCmd.PersistentFlags().Lookup("database-port"))
-	viper.BindPFlag(snapshot.DATABASE_HOSTNAME_TOML, rootCmd.PersistentFlags().Lookup("database-hostname"))
-	viper.BindPFlag(snapshot.DATABASE_USER_TOML, rootCmd.PersistentFlags().Lookup("database-user"))
-	viper.BindPFlag(snapshot.DATABASE_PASSWORD_TOML, rootCmd.PersistentFlags().Lookup("database-password"))
-	viper.BindPFlag(snapshot.LOGRUS_LEVEL_TOML, rootCmd.PersistentFlags().Lookup("log-level"))
+	viper.BindPFlag(snapshot.LOGRUS_FILE_TOML, rootCmd.PersistentFlags().Lookup(snapshot.LOGRUS_FILE_CLI))
+	viper.BindPFlag(snapshot.DATABASE_NAME_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_NAME_CLI))
+	viper.BindPFlag(snapshot.DATABASE_PORT_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_PORT_CLI))
+	viper.BindPFlag(snapshot.DATABASE_HOSTNAME_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_HOSTNAME_CLI))
+	viper.BindPFlag(snapshot.DATABASE_USER_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_USER_CLI))
+	viper.BindPFlag(snapshot.DATABASE_PASSWORD_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_PASSWORD_CLI))
+	viper.BindPFlag(snapshot.LOGRUS_LEVEL_TOML, rootCmd.PersistentFlags().Lookup(snapshot.LOGRUS_LEVEL_CLI))
 }
 
 func initConfig() {

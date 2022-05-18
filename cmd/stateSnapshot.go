@@ -40,7 +40,7 @@ var stateSnapshotCmd = &cobra.Command{
 }
 
 func stateSnapshot() {
-	modeStr := viper.GetString("snapshot.mode")
+	modeStr := viper.GetString(snapshot.SNAPSHOT_MODE_TOML)
 	mode := snapshot.SnapshotMode(modeStr)
 	config, err := snapshot.NewConfig(mode)
 	if err != nil {
@@ -52,8 +52,8 @@ func stateSnapshot() {
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
-	height := viper.GetInt64("snapshot.blockHeight")
-	recoveryFile := viper.GetString("snapshot.recoveryFile")
+	height := viper.GetInt64(snapshot.SNAPSHOT_BLOCK_HEIGHT_TOML)
+	recoveryFile := viper.GetString(snapshot.SNAPSHOT_RECOVERY_FILE_TOML)
 	if recoveryFile == "" {
 		recoveryFile = fmt.Sprintf("./%d_snapshot_recovery", height)
 		logWithCommand.Infof("no recovery file set, creating default: %s", recoveryFile)
@@ -68,7 +68,7 @@ func stateSnapshot() {
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
-	workers := viper.GetUint("snapshot.workers")
+	workers := viper.GetUint(snapshot.SNAPSHOT_WORKERS_TOML)
 
 	if height < 0 {
 		if err := snapshotService.CreateLatestSnapshot(workers); err != nil {
@@ -86,19 +86,19 @@ func stateSnapshot() {
 func init() {
 	rootCmd.AddCommand(stateSnapshotCmd)
 
-	stateSnapshotCmd.PersistentFlags().String("leveldb-path", "", "path to primary datastore")
-	stateSnapshotCmd.PersistentFlags().String("ancient-path", "", "path to ancient datastore")
-	stateSnapshotCmd.PersistentFlags().String("block-height", "", "blockheight to extract state at")
-	stateSnapshotCmd.PersistentFlags().Int("workers", 1, "number of concurrent workers to use")
-	stateSnapshotCmd.PersistentFlags().String("recovery-file", "", "file to recover from a previous iteration")
-	stateSnapshotCmd.PersistentFlags().String("snapshot-mode", "postgres", "output mode for snapshot ('file' or 'postgres')")
-	stateSnapshotCmd.PersistentFlags().String("output-dir", "", "directory for writing ouput to while operating in 'file' mode")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.LVL_DB_PATH_CLI, "", "path to primary datastore")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.ANCIENT_DB_PATH_CLI, "", "path to ancient datastore")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_BLOCK_HEIGHT_CLI, "", "block height to extract state at")
+	stateSnapshotCmd.PersistentFlags().Int(snapshot.SNAPSHOT_WORKERS_CLI, 1, "number of concurrent workers to use")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_RECOVERY_FILE_CLI, "", "file to recover from a previous iteration")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_MODE_CLI, "postgres", "output mode for snapshot ('file' or 'postgres')")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.FILE_OUTPUT_DIR_CLI, "", "directory for writing ouput to while operating in 'file' mode")
 
-	viper.BindPFlag(snapshot.LVL_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup("leveldb-path"))
-	viper.BindPFlag(snapshot.ANCIENT_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup("ancient-path"))
-	viper.BindPFlag(snapshot.SNAPSHOT_BLOCK_HEIGHT_TOML, stateSnapshotCmd.PersistentFlags().Lookup("block-height"))
-	viper.BindPFlag(snapshot.SNAPSHOT_WORKERS_TOML, stateSnapshotCmd.PersistentFlags().Lookup("workers"))
-	viper.BindPFlag(snapshot.SNAPSHOT_RECOVERY_FILE_TOML, stateSnapshotCmd.PersistentFlags().Lookup("recovery-file"))
-	viper.BindPFlag(snapshot.SNAPSHOT_MODE_TOML, stateSnapshotCmd.PersistentFlags().Lookup("snapshot-mode"))
-	viper.BindPFlag(snapshot.FILE_OUTPUT_DIR_TOML, stateSnapshotCmd.PersistentFlags().Lookup("output-dir"))
+	viper.BindPFlag(snapshot.LVL_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.LVL_DB_PATH_CLI))
+	viper.BindPFlag(snapshot.ANCIENT_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.ANCIENT_DB_PATH_CLI))
+	viper.BindPFlag(snapshot.SNAPSHOT_BLOCK_HEIGHT_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_BLOCK_HEIGHT_CLI))
+	viper.BindPFlag(snapshot.SNAPSHOT_WORKERS_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_WORKERS_CLI))
+	viper.BindPFlag(snapshot.SNAPSHOT_RECOVERY_FILE_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_RECOVERY_FILE_CLI))
+	viper.BindPFlag(snapshot.SNAPSHOT_MODE_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_MODE_CLI))
+	viper.BindPFlag(snapshot.FILE_OUTPUT_DIR_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.FILE_OUTPUT_DIR_CLI))
 }
