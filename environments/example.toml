@@ -5,8 +5,12 @@
     user     = "postgres"
 
 [leveldb]
-    path = "/Users/user/Library/Ethereum/geth/chaindata"
-    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
+    path = "/Users/iannorden/Library/Ethereum/geth/chaindata"
+    ancient = "/Users/iannorden/Library/Ethereum/geth/chaindata/ancient"
+
+[log]
+    level = "info"
+    file = "log_file"
 
 [snapshot]
     mode = "file"

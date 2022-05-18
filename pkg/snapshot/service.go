@@ -55,8 +55,6 @@ type Service struct {
 }
 
 func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
-	println(con.LevelDBPath)
-	println(con.AncientDBPath)
 	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(
 		con.LevelDBPath, 1024, 256, con.AncientDBPath, "ipld-eth-state-snapshot", true,
 	)
