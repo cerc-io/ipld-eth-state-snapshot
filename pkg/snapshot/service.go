@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	emptyNode, _      = rlp.EncodeToBytes([]byte{})
+	emptyNode, _      = rlp.EncodeToBytes(&[]byte{})
 	emptyCodeHash     = crypto.Keccak256([]byte{})
 	emptyContractRoot = crypto.Keccak256Hash(emptyNode)
 
@@ -142,7 +142,6 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	} else {
 		return s.createSnapshot(iters[0], headerID)
 	}
-	return nil
 }
 
 // Create snapshot up to head (ignores height param)

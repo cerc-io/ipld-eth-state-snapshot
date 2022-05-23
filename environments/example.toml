@@ -12,6 +12,13 @@
     level = "info"
     file = "log_file"
 
+[prom]
+    metrics = true
+    http = true
+    httpAddr = "0.0.0.0"
+    httpPort = 9101
+    dbStats = true
+
 [snapshot]
     mode = "file"
     workers = 4
