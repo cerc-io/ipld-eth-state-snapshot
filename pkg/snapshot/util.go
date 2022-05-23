@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
 	file "github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/file"
 	pg "github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/pg"
 	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
@@ -18,6 +19,9 @@ func NewPublisher(mode SnapshotMode, config *Config) (snapt.Publisher, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		prom.RegisterDBCollector(config.DB.ConnConfig.DatabaseName, driver)
+
 		return pg.NewPublisher(postgres.NewPostgresDB(driver)), nil
 	case FileSnapshot:
 		return file.NewPublisher(config.File.OutputDir, config.Eth.NodeInfo)

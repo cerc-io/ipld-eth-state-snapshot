@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
 	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
@@ -151,6 +152,7 @@ func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, height *
 	}
 	// increment state node counter.
 	atomic.AddUint64(&p.stateNodeCounter, 1)
+	prom.IncStateNodeCount()
 
 	// increment current batch size counter
 	p.currBatchSize += 2
@@ -177,6 +179,7 @@ func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, height
 	}
 	// increment storage node counter.
 	atomic.AddUint64(&p.storageNodeCounter, 1)
+	prom.IncStorageNodeCount()
 
 	// increment current batch size counter
 	p.currBatchSize += 2
@@ -198,6 +201,7 @@ func (p *publisher) PublishCode(height *big.Int, codeHash common.Hash, codeBytes
 
 	// increment code node counter.
 	atomic.AddUint64(&p.codeNodeCounter, 1)
+	prom.IncCodeNodeCount()
 
 	p.currBatchSize++
 	return nil

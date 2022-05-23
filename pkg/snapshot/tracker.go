@@ -87,7 +87,7 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator) (ret *trackedIter) {
 
 // dumps iterator path and bounds to a text file so it can be restored later
 func (tr *iteratorTracker) dump() error {
-	log.Info("Dumping recovery state to:", tr.recoveryFile)
+	log.Info("Dumping recovery state to: ", tr.recoveryFile)
 	var rows [][]string
 	for it, _ := range tr.started {
 		var endPath []byte

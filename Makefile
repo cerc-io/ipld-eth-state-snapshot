@@ -10,3 +10,7 @@ mocks/snapshot/publisher.go: pkg/types/publisher.go
 
 clean:
 	rm -f mocks/snapshot/publisher.go
+
+build:
+	go fmt ./...
+	go build
