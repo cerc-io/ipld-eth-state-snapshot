@@ -109,7 +109,7 @@ func init() {
 	rootCmd.PersistentFlags().String(snapshot.DATABASE_HOSTNAME_CLI, "localhost", "database hostname")
 	rootCmd.PersistentFlags().String(snapshot.DATABASE_USER_CLI, "", "database user")
 	rootCmd.PersistentFlags().String(snapshot.DATABASE_PASSWORD_CLI, "", "database password")
-	rootCmd.PersistentFlags().String(snapshot.LOGRUS_LEVEL_CLI, log.InfoLevel.String(), "log level (trace, debug, info, warn, error, fatal, panic")
+	rootCmd.PersistentFlags().String(snapshot.LOGRUS_LEVEL_CLI, log.InfoLevel.String(), "log level (trace, debug, info, warn, error, fatal, panic)")
 
 	rootCmd.PersistentFlags().Bool(snapshot.PROM_METRICS_CLI, false, "enable prometheus metrics")
 	rootCmd.PersistentFlags().Bool(snapshot.PROM_HTTP_CLI, false, "enable prometheus http service")

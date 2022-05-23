@@ -1,9 +1,8 @@
 [database]
-    name     = "vulcanize_testing"
+    name     = "vulcanize_public"
     hostname = "localhost"
-    port     = 8077
-    user     = "vdbm"
-    password = "password"
+    port     = 5432
+    user     = "postgres"
 
 [leveldb]
     path = "/Users/iannorden/Library/Ethereum/geth/chaindata"
