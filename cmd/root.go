@@ -24,6 +24,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot"
 )
 
 var (
@@ -46,7 +49,7 @@ func Execute() {
 }
 
 func initFuncs(cmd *cobra.Command, args []string) {
-	logfile := viper.GetString("logfile")
+	logfile := viper.GetString(snapshot.LOGRUS_FILE_TOML)
 	if logfile != "" {
 		file, err := os.OpenFile(logfile,
 			os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -63,10 +66,25 @@ func initFuncs(cmd *cobra.Command, args []string) {
 	if err := logLevel(); err != nil {
 		log.Fatal("Could not set log level: ", err)
 	}
+
+	if viper.GetBool(snapshot.PROM_METRICS_TOML) {
+		log.Info("initializing prometheus metrics")
+		prom.Init()
+	}
+
+	if viper.GetBool(snapshot.PROM_HTTP_TOML) {
+		addr := fmt.Sprintf(
+			"%s:%s",
+			viper.GetString(snapshot.PROM_HTTP_ADDR_TOML),
+			viper.GetString(snapshot.PROM_HTTP_PORT_TOML),
+		)
+		log.Info("starting prometheus server")
+		prom.Serve(addr)
+	}
 }
 
 func logLevel() error {
-	lvl, err := log.ParseLevel(viper.GetString("log.level"))
+	lvl, err := log.ParseLevel(viper.GetString(snapshot.LOGRUS_LEVEL_TOML))
 	if err != nil {
 		return err
 	}
@@ -75,6 +93,7 @@ func logLevel() error {
 		log.SetReportCaller(true)
 	}
 	log.Info("Log level set to ", lvl.String())
+
 	return nil
 }
 
@@ -84,21 +103,33 @@ func init() {
 	viper.AutomaticEnv()
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file location")
-	rootCmd.PersistentFlags().String("logfile", "", "file path for logging")
-	rootCmd.PersistentFlags().String("database-name", "vulcanize_public", "database name")
-	rootCmd.PersistentFlags().Int("database-port", 5432, "database port")
-	rootCmd.PersistentFlags().String("database-hostname", "localhost", "database hostname")
-	rootCmd.PersistentFlags().String("database-user", "", "database user")
-	rootCmd.PersistentFlags().String("database-password", "", "database password")
-	rootCmd.PersistentFlags().String("log-level", log.InfoLevel.String(), "Log level (trace, debug, info, warn, error, fatal, panic")
+	rootCmd.PersistentFlags().String(snapshot.LOGRUS_FILE_CLI, "", "file path for logging")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_NAME_CLI, "vulcanize_public", "database name")
+	rootCmd.PersistentFlags().Int(snapshot.DATABASE_PORT_CLI, 5432, "database port")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_HOSTNAME_CLI, "localhost", "database hostname")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_USER_CLI, "", "database user")
+	rootCmd.PersistentFlags().String(snapshot.DATABASE_PASSWORD_CLI, "", "database password")
+	rootCmd.PersistentFlags().String(snapshot.LOGRUS_LEVEL_CLI, log.InfoLevel.String(), "log level (trace, debug, info, warn, error, fatal, panic)")
 
-	viper.BindPFlag("logfile", rootCmd.PersistentFlags().Lookup("logfile"))
-	viper.BindPFlag("database.name", rootCmd.PersistentFlags().Lookup("database-name"))
-	viper.BindPFlag("database.port", rootCmd.PersistentFlags().Lookup("database-port"))
-	viper.BindPFlag("database.hostname", rootCmd.PersistentFlags().Lookup("database-hostname"))
-	viper.BindPFlag("database.user", rootCmd.PersistentFlags().Lookup("database-user"))
-	viper.BindPFlag("database.password", rootCmd.PersistentFlags().Lookup("database-password"))
-	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
+	rootCmd.PersistentFlags().Bool(snapshot.PROM_METRICS_CLI, false, "enable prometheus metrics")
+	rootCmd.PersistentFlags().Bool(snapshot.PROM_HTTP_CLI, false, "enable prometheus http service")
+	rootCmd.PersistentFlags().String(snapshot.PROM_HTTP_ADDR_CLI, "127.0.0.1", "prometheus http host")
+	rootCmd.PersistentFlags().String(snapshot.PROM_HTTP_PORT_CLI, "8086", "prometheus http port")
+	rootCmd.PersistentFlags().Bool(snapshot.PROM_DB_STATS_CLI, false, "enables prometheus db stats")
+
+	viper.BindPFlag(snapshot.LOGRUS_FILE_TOML, rootCmd.PersistentFlags().Lookup(snapshot.LOGRUS_FILE_CLI))
+	viper.BindPFlag(snapshot.DATABASE_NAME_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_NAME_CLI))
+	viper.BindPFlag(snapshot.DATABASE_PORT_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_PORT_CLI))
+	viper.BindPFlag(snapshot.DATABASE_HOSTNAME_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_HOSTNAME_CLI))
+	viper.BindPFlag(snapshot.DATABASE_USER_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_USER_CLI))
+	viper.BindPFlag(snapshot.DATABASE_PASSWORD_TOML, rootCmd.PersistentFlags().Lookup(snapshot.DATABASE_PASSWORD_CLI))
+	viper.BindPFlag(snapshot.LOGRUS_LEVEL_TOML, rootCmd.PersistentFlags().Lookup(snapshot.LOGRUS_LEVEL_CLI))
+
+	viper.BindPFlag(snapshot.PROM_METRICS_TOML, rootCmd.PersistentFlags().Lookup(snapshot.PROM_METRICS_CLI))
+	viper.BindPFlag(snapshot.PROM_HTTP_TOML, rootCmd.PersistentFlags().Lookup(snapshot.PROM_HTTP_CLI))
+	viper.BindPFlag(snapshot.PROM_HTTP_ADDR_TOML, rootCmd.PersistentFlags().Lookup(snapshot.PROM_HTTP_ADDR_CLI))
+	viper.BindPFlag(snapshot.PROM_HTTP_PORT_TOML, rootCmd.PersistentFlags().Lookup(snapshot.PROM_HTTP_PORT_CLI))
+	viper.BindPFlag(snapshot.PROM_DB_STATS_TOML, rootCmd.PersistentFlags().Lookup(snapshot.PROM_DB_STATS_CLI))
 }
 
 func initConfig() {

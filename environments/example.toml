@@ -5,8 +5,19 @@
     user     = "postgres"
 
 [leveldb]
-    path = "/Users/user/Library/Ethereum/geth/chaindata"
-    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient"
+    path = "/Users/iannorden/Library/Ethereum/geth/chaindata"
+    ancient = "/Users/iannorden/Library/Ethereum/geth/chaindata/ancient"
+
+[log]
+    level = "info"
+    file = "log_file"
+
+[prom]
+    metrics = true
+    http = true
+    httpAddr = "0.0.0.0"
+    httpPort = 9101
+    dbStats = true
 
 [snapshot]
     mode = "file"

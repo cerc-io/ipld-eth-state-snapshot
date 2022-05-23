@@ -4,7 +4,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/vulcanize/ipld-eth-state-snapshot)](https://goreportcard.com/report/github.com/vulcanize/ipld-eth-state-snapshot)
 
-## Usage 
+## Usage
 
 ./ipld-eth-state-snapshot stateSnapshot --config={path to toml config file}
 
@@ -32,4 +32,15 @@ Config format:
 
 [file]
     outputDir = "output_dir/" # when operating in 'file' output mode, this is the directory the files are written to
+
+[log]
+    level = "info" # log level (trace, debug, info, warn, error, fatal, panic) (default: info)
+    file = "log_file" # file path for logging
+
+[prom]
+    metrics = true # enable prometheus metrics (default: false)
+    http = true # enable prometheus http service (default: false)
+    httpAddr = "0.0.0.0" # prometheus http host (default: 127.0.0.1)
+    httpPort = 9101 # prometheus http port (default: 8086)
+    dbStats = true # enable prometheus db stats (default: false)
 ```
