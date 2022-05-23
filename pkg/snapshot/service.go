@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	emptyNode, _      = rlp.EncodeToBytes([]byte{})
+	emptyNode, _      = rlp.EncodeToBytes(&[]byte{})
 	emptyCodeHash     = crypto.Keccak256([]byte{})
 	emptyContractRoot = crypto.Keccak256Hash(emptyNode)
 
