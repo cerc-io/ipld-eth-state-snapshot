@@ -25,6 +25,12 @@ const (
 	LOGRUS_LEVEL = "LOGRUS_LEVEL"
 	LOGRUS_FILE  = "LOGRUS_FILE"
 
+	PROM_METRICS   = "PROM_METRICS"
+	PROM_HTTP      = "PROM_HTTP"
+	PROM_HTTP_ADDR = "PROM_HTTP_ADDR"
+	PROM_HTTP_PORT = "PROM_HTTP_PORT"
+	PROM_DB_STATS  = "PROM_DB_STATS"
+
 	FILE_OUTPUT_DIR = "FILE_OUTPUT_DIR"
 
 	ANCIENT_DB_PATH = "ANCIENT_DB_PATH"
@@ -56,6 +62,12 @@ const (
 	LOGRUS_LEVEL_TOML = "log.level"
 	LOGRUS_FILE_TOML  = "log.file"
 
+	PROM_METRICS_TOML   = "prom.metrics"
+	PROM_HTTP_TOML      = "prom.http"
+	PROM_HTTP_ADDR_TOML = "prom.httpAddr"
+	PROM_HTTP_PORT_TOML = "prom.httpPort"
+	PROM_DB_STATS_TOML  = "prom.dbStats"
+
 	FILE_OUTPUT_DIR_TOML = "file.outputDir"
 
 	ANCIENT_DB_PATH_TOML = "leveldb.ancient"
@@ -86,6 +98,12 @@ const (
 
 	LOGRUS_LEVEL_CLI = "log-level"
 	LOGRUS_FILE_CLI  = "log-file"
+
+	PROM_METRICS_CLI   = "prom-metrics"
+	PROM_HTTP_CLI      = "prom-http"
+	PROM_HTTP_ADDR_CLI = "prom-httpAddr"
+	PROM_HTTP_PORT_CLI = "prom-httpPort"
+	PROM_DB_STATS_CLI  = "prom-dbStats"
 
 	FILE_OUTPUT_DIR_CLI = "output-dir"
 

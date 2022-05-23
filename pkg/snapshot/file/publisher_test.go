@@ -127,6 +127,7 @@ func TestPgCopy(t *testing.T) {
 	test.NoError(t, err)
 
 	headerNode, err := ipld.NewEthHeader(&fixt.Block1_Header)
+	test.NoError(t, err)
 	test.ExpectEqual(t, headerNode.Cid().String(), header.CID)
 	test.ExpectEqual(t, fixt.Block1_Header.Hash().String(), header.BlockHash)
 }

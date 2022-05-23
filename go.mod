@@ -3,6 +3,7 @@ module github.com/vulcanize/ipld-eth-state-snapshot
 go 1.15
 
 require (
+	github.com/btcsuite/btcd v0.22.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/ethereum/go-ethereum v1.10.17
@@ -24,6 +25,7 @@ require (
 	github.com/multiformats/go-multihash v0.1.0
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.13.0 // indirect
+	github.com/prometheus/client_golang v1.3.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/smartystreets/assertions v1.0.0 // indirect
 	github.com/spf13/cobra v1.0.0

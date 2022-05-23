@@ -1,8 +1,9 @@
 [database]
-    name     = "vulcanize_public"
+    name     = "vulcanize_testing"
     hostname = "localhost"
-    port     = 5432
-    user     = "postgres"
+    port     = 8077
+    user     = "vdbm"
+    password = "password"
 
 [leveldb]
     path = "/Users/iannorden/Library/Ethereum/geth/chaindata"
@@ -11,6 +12,13 @@
 [log]
     level = "info"
     file = "log_file"
+
+[prom]
+    metrics = true
+    http = true
+    httpAddr = "0.0.0.0"
+    httpPort = 9101
+    dbStats = true
 
 [snapshot]
     mode = "file"

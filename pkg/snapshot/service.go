@@ -142,7 +142,6 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	} else {
 		return s.createSnapshot(iters[0], headerID)
 	}
-	return nil
 }
 
 // Create snapshot up to head (ignores height param)

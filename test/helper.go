@@ -20,10 +20,10 @@ var (
 	}
 	DefaultPgConfig = postgres.Config{
 		Hostname:     "localhost",
-		Port:         5432,
-		DatabaseName: "vulcanize_test",
-		Username:     "vulcanize",
-		Password:     "vulcanize_password",
+		Port:         8077,
+		DatabaseName: "vulcanize_testing",
+		Username:     "vdbm",
+		Password:     "password",
 
 		MaxIdle:         0,
 		MaxConnLifetime: 0,
