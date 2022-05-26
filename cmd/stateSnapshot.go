@@ -44,7 +44,7 @@ func stateSnapshot() {
 	mode := snapshot.SnapshotMode(modeStr)
 	config, err := snapshot.NewConfig(mode)
 	if err != nil {
-		logWithCommand.Fatal("unable to initialize config: %v", err)
+		logWithCommand.Fatalf("unable to initialize config: %v", err)
 	}
 	logWithCommand.Infof("opening levelDB and ancient data at %s and %s",
 		config.Eth.LevelDBPath, config.Eth.AncientDBPath)

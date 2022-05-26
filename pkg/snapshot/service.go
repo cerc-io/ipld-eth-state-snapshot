@@ -81,6 +81,8 @@ type SnapshotParams struct {
 }
 
 func (s *Service) CreateSnapshot(params SnapshotParams) error {
+	log.Infof("createSnapshot BEGIN %v", params)
+
 	// extract header from lvldb and publish to PG-IPFS
 	// hold onto the headerID so that we can link the state nodes to this header
 	log.Infof("Creating snapshot at height %d", params.Height)
@@ -92,12 +94,16 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 	log.Infof("head hash: %s head height: %d", hash.Hex(), params.Height)
 
+	log.Infof("publish header")
 	err := s.ipfsPublisher.PublishHeader(header)
 	if err != nil {
 		return err
 	}
 
+	log.Infof("opening trie...")
 	tree, err := s.stateDB.OpenTrie(header.Root)
+	log.Infof("opened trie")
+
 	if err != nil {
 		return err
 	}
@@ -106,13 +112,19 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	go s.tracker.run()
 	go s.tracker.captureSignal()
 
+	log.Infof("after goroutines start")
+
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
+	log.Infof("restoring iterators from recovery file...")
 	iters, err = s.tracker.restore(tree)
+
 	if err != nil {
+		log.Errorf("restore error: %s", err.Error())
 		return err
 	}
 	if iters != nil {
+		log.Infof("restored iterators; count: %d", len(iters))
 		if params.Workers < uint(len(iters)) {
 			return fmt.Errorf(
 				"number of recovered workers (%d) is greater than number configured (%d)",
@@ -120,12 +132,17 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 			)
 		}
 	} else { // nothing to restore
+		log.Infof("no iterators to restore")
 		if params.Workers > 1 {
+			log.Infof("creating %d subtrie iterators...", params.Workers)
 			iters = iter.SubtrieIterators(tree, params.Workers)
+			log.Infof("created %d subtrie iterators", params.Workers)
 		} else {
+			log.Infof("creating node iterators")
 			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
 		}
 		for i, it := range iters {
+			log.Infof("tracked iterator %d", i)
 			iters[i] = s.tracker.tracked(it)
 		}
 	}
@@ -133,9 +150,11 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	defer func() {
 		err := s.tracker.haltAndDump()
 		if err != nil {
-			log.Error("failed to write recovery file: ", err)
+			log.Errorf("failed to write recovery file: %v", err)
 		}
 	}()
+
+	log.Infof("num iters %d", len(iters))
 
 	if len(iters) > 0 {
 		return s.createSnapshotAsync(iters, headerID)

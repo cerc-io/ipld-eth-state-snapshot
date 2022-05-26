@@ -1,7 +1,7 @@
 MOCKS_DIR = $(CURDIR)/mocks
 mockgen_cmd=mockgen
 
-.PHONY: mocks
+.PHONY: mocks test
 
 mocks: mocks/snapshot/publisher.go
 
@@ -14,3 +14,6 @@ clean:
 build:
 	go fmt ./...
 	go build
+
+test: mocks
+	go clean -testcache && go test -v ./...
