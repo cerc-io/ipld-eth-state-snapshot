@@ -44,7 +44,8 @@ func TestCreateSnapshot(t *testing.T) {
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).
 			AnyTimes()
 		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any()).
-			Times(len(fixt.Block1_StateNodePaths))
+			// Use MinTimes as duplicate nodes are expected at boundaries
+			MinTimes(len(fixt.Block1_StateNodePaths))
 
 		// TODO: fixtures for storage node
 		// pub.EXPECT().PublishStorageNode(gomock.Eq(fixt.StorageNode), gomock.Eq(int64(0)), gomock.Any())
