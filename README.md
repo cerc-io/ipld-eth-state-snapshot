@@ -43,4 +43,12 @@ Config format:
     httpAddr = "0.0.0.0" # prometheus http host (default: 127.0.0.1)
     httpPort = 9101 # prometheus http port (default: 8086)
     dbStats = true # enable prometheus db stats (default: false)
+
+# node info
+[ethereum]
+    clientName = "Geth" # $ETH_CLIENT_NAME
+    nodeID = "arch1" # $ETH_NODE_ID
+    networkID = "1" # $ETH_NETWORK_ID
+    chainID = "1" # $ETH_CHAIN_ID
+    genesisBlock = "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3" # $ETH_GENESIS_BLOCK
 ```
