@@ -139,6 +139,7 @@ func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error)
 
 		// Force the lower bound path to an even length
 		if len(paths[0])&0b1 == 1 {
+			decrementPath(paths[0]) // decrement first to avoid skipped nodes
 			paths[0] = append(paths[0], 0)
 		}
 		it := iter.NewPrefixBoundIterator(tree.NodeIterator(iter.HexToKeyBytes(paths[0])), paths[1])
