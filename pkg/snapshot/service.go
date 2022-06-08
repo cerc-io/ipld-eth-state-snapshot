@@ -109,8 +109,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}
 	headerID := header.Hash().String()
 	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
-	go s.tracker.run()
-	go s.tracker.captureSignal()
+	s.tracker.captureSignal()
 
 	log.Infof("after goroutines start")
 
