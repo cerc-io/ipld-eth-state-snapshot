@@ -56,7 +56,7 @@ func stateSnapshot() {
 	recoveryFile := viper.GetString(snapshot.SNAPSHOT_RECOVERY_FILE_TOML)
 	if recoveryFile == "" {
 		recoveryFile = fmt.Sprintf("./%d_snapshot_recovery", height)
-		logWithCommand.Infof("no recovery file set, creating default: %s", recoveryFile)
+		logWithCommand.Infof("no recovery file set, using default: %s", recoveryFile)
 	}
 
 	pub, err := snapshot.NewPublisher(mode, config)
