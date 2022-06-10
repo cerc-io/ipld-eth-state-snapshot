@@ -28,3 +28,26 @@ func NewPublisher(mode SnapshotMode, config *Config) (snapt.Publisher, error) {
 	}
 	return nil, fmt.Errorf("invalid snapshot mode: %s", mode)
 }
+
+// Subtracts 1 from the last byte in a path slice, carrying if needed.
+// Does nothing, returning false, for all-zero inputs.
+func decrementPath(path []byte) bool {
+	// check for all zeros
+	allzero := true
+	for i := 0; i < len(path); i++ {
+		allzero = allzero && path[i] == 0
+	}
+	if allzero {
+		return false
+	}
+	for i := len(path) - 1; i >= 0; i-- {
+		val := path[i]
+		path[i]--
+		if val == 0 {
+			path[i] = 0xf
+		} else {
+			return true
+		}
+	}
+	return true
+}

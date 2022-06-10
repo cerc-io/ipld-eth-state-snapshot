@@ -1,2 +1,4 @@
 .idea/
+.vscode/
 ipld-eth-state-snapshot
+mocks/
