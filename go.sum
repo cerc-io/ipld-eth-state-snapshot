@@ -691,10 +691,6 @@ github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6So
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.6.1 h1:/FiVV8dS/e+YqF2JvO3yXRFbBLTIuSDkuC7aBOAvL+k=
 github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
-github.com/roysc/go-eth-state-node-iterator v0.0.1-alpha.0.20220531152907-bfd1bc31af52 h1:TlAsgpvEimLhvYlo+OWW9S9v7ZS+SjvOUaDNKaCNhRE=
-github.com/roysc/go-eth-state-node-iterator v0.0.1-alpha.0.20220531152907-bfd1bc31af52/go.mod h1:uWhleTvUEZ+cEkNRIAmBpZ14KilTP71OxY5NZDrpNlo=
-github.com/roysc/go-eth-state-node-iterator v0.0.1-alpha.0.20220608100444-4fbaa45d8ede h1:oOY015isx8UKw3q9zV+2/jDVYGTvJGvxxnDhIVtymZk=
-github.com/roysc/go-eth-state-node-iterator v0.0.1-alpha.0.20220608100444-4fbaa45d8ede/go.mod h1:a1aRW1/fEmcpY8AAU47p9TNL3QNjpeqCJd/hLtFKVL8=
 github.com/rs/cors v1.7.0/go.mod h1:gFx+x8UowdsKA9AchylcLynDq+nNFfI8FkUZdN/jGCU=
 github.com/rs/xid v1.2.1/go.mod h1:+uKXf+4Djp6Md1KODXJxgGQPKngRmWyn10oCKFzNHOQ=
 github.com/rs/zerolog v1.13.0/go.mod h1:YbFCdg8HfsridGWAh22vktObvhZbQsZXe4/zB0OKkWU=
@@ -780,6 +776,8 @@ github.com/urfave/cli/v2 v2.3.0/go.mod h1:LJmUH05zAU44vOAcrfzZQKsZbVcdbOG8rtL3/X
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/valyala/fasttemplate v1.2.1/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+qRAEEKiv+SiQ=
+github.com/vulcanize/go-eth-state-node-iterator v1.1.0 h1:wbOpP9BnqDcN8OWbuOw/QvR7Mde5JuuI15SGfLil0ZE=
+github.com/vulcanize/go-eth-state-node-iterator v1.1.0/go.mod h1:a1aRW1/fEmcpY8AAU47p9TNL3QNjpeqCJd/hLtFKVL8=
 github.com/vulcanize/go-ethereum v1.10.18-statediff-3.2.2 h1:hAZFOtnfdHtVgiwtcNFZDxCEN01c4W5Xsw+1K/IlHBA=
 github.com/vulcanize/go-ethereum v1.10.18-statediff-3.2.2/go.mod h1:HelXH7UT1uWdb+St6UAj4pPf93GOggjIV7pVbrWIZ3o=
 github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc/go.mod h1:bopw91TMyo8J3tvftk8xmU2kPmlrt4nScJQZU2hE5EM=

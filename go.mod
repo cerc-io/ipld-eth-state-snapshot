@@ -14,7 +14,7 @@ require (
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
-	github.com/vulcanize/go-eth-state-node-iterator v1.0.3
+	github.com/vulcanize/go-eth-state-node-iterator v1.1.0
 )
 
 require (
@@ -114,8 +114,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace (
-	github.com/ethereum/go-ethereum => github.com/vulcanize/go-ethereum v1.10.18-statediff-3.2.2
-
-	github.com/vulcanize/go-eth-state-node-iterator => github.com/roysc/go-eth-state-node-iterator v0.0.1-alpha.0.20220608100444-4fbaa45d8ede
-)
+replace github.com/ethereum/go-ethereum v1.10.18 => github.com/vulcanize/go-ethereum v1.10.18-statediff-3.2.2
