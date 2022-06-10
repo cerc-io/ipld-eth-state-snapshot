@@ -44,7 +44,7 @@ func stateSnapshot() {
 	mode := snapshot.SnapshotMode(modeStr)
 	config, err := snapshot.NewConfig(mode)
 	if err != nil {
-		logWithCommand.Fatal("unable to initialize config: %v", err)
+		logWithCommand.Fatalf("unable to initialize config: %v", err)
 	}
 	logWithCommand.Infof("opening levelDB and ancient data at %s and %s",
 		config.Eth.LevelDBPath, config.Eth.AncientDBPath)
@@ -56,7 +56,7 @@ func stateSnapshot() {
 	recoveryFile := viper.GetString(snapshot.SNAPSHOT_RECOVERY_FILE_TOML)
 	if recoveryFile == "" {
 		recoveryFile = fmt.Sprintf("./%d_snapshot_recovery", height)
-		logWithCommand.Infof("no recovery file set, creating default: %s", recoveryFile)
+		logWithCommand.Infof("no recovery file set, using default: %s", recoveryFile)
 	}
 
 	pub, err := snapshot.NewPublisher(mode, config)

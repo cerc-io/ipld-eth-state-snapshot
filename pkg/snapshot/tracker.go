@@ -22,7 +22,11 @@ type trackedIter struct {
 func (it *trackedIter) Next(descend bool) bool {
 	ret := it.NodeIterator.Next(descend)
 	if !ret {
-		it.tracker.stopChan <- it
+		if it.tracker.running {
+			it.tracker.stopChan <- it
+		} else {
+			log.Errorf("iterator stopped after tracker halted: path=%x", it.Path())
+		}
 	}
 	return ret
 }
@@ -34,9 +38,7 @@ type iteratorTracker struct {
 	stopChan  chan *trackedIter
 	started   map[*trackedIter]struct{}
 	stopped   []*trackedIter
-
-	haltChan chan struct{}
-	done     chan struct{}
+	running   bool
 }
 
 func newTracker(file string, buf int) iteratorTracker {
@@ -45,8 +47,7 @@ func newTracker(file string, buf int) iteratorTracker {
 		startChan:    make(chan *trackedIter, buf),
 		stopChan:     make(chan *trackedIter, buf),
 		started:      map[*trackedIter]struct{}{},
-		haltChan:     make(chan struct{}),
-		done:         make(chan struct{}),
+		running:      true,
 	}
 }
 
@@ -62,23 +63,7 @@ func (tr *iteratorTracker) captureSignal() {
 	}()
 }
 
-// listens for starts/stops and manages current state
-func (tr *iteratorTracker) run() {
-loop:
-	for {
-		select {
-		case start := <-tr.startChan:
-			tr.started[start] = struct{}{}
-		case stop := <-tr.stopChan:
-			tr.stopped = append(tr.stopped, stop)
-		case <-tr.haltChan:
-			break loop
-		default:
-		}
-	}
-	tr.done <- struct{}{}
-}
-
+// Wraps an iterator in a trackedIter. This should not be called once halts are possible.
 func (tr *iteratorTracker) tracked(it trie.NodeIterator) (ret *trackedIter) {
 	ret = &trackedIter{it, tr}
 	tr.startChan <- ret
@@ -87,7 +72,7 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator) (ret *trackedIter) {
 
 // dumps iterator path and bounds to a text file so it can be restored later
 func (tr *iteratorTracker) dump() error {
-	log.Info("Dumping recovery state to: ", tr.recoveryFile)
+	log.Debug("Dumping recovery state to: ", tr.recoveryFile)
 	var rows [][]string
 	for it, _ := range tr.started {
 		var endPath []byte
@@ -118,6 +103,7 @@ func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error)
 		}
 		return nil, err
 	}
+	log.Debug("Restoring recovery state from: ", tr.recoveryFile)
 	defer file.Close()
 	in := csv.NewReader(file)
 	in.FieldsPerRecord = 2
@@ -137,15 +123,19 @@ func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error)
 			}
 		}
 
-		it := iter.NewPrefixBoundIterator(tree, paths[0], paths[1])
+		// Force the lower bound path to an even length
+		if len(paths[0])&0b1 == 1 {
+			decrementPath(paths[0]) // decrement first to avoid skipped nodes
+			paths[0] = append(paths[0], 0)
+		}
+		it := iter.NewPrefixBoundIterator(tree.NodeIterator(iter.HexToKeyBytes(paths[0])), paths[1])
 		ret = append(ret, tr.tracked(it))
 	}
 	return ret, nil
 }
 
 func (tr *iteratorTracker) haltAndDump() error {
-	tr.haltChan <- struct{}{}
-	<-tr.done
+	tr.running = false
 
 	// drain any pending events
 	close(tr.startChan)
