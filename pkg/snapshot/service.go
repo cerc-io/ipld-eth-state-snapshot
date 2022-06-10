@@ -101,18 +101,21 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	if err != nil {
 		return err
 	}
+
 	headerID := header.Hash().String()
 	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
-	go s.tracker.run()
-	go s.tracker.captureSignal()
+	s.tracker.captureSignal()
 
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
 	iters, err = s.tracker.restore(tree)
 	if err != nil {
+		log.Errorf("restore error: %s", err.Error())
 		return err
 	}
+
 	if iters != nil {
+		log.Debugf("restored iterators; count: %d", len(iters))
 		if params.Workers < uint(len(iters)) {
 			return fmt.Errorf(
 				"number of recovered workers (%d) is greater than number configured (%d)",
@@ -120,6 +123,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 			)
 		}
 	} else { // nothing to restore
+		log.Debugf("no iterators to restore")
 		if params.Workers > 1 {
 			iters = iter.SubtrieIterators(tree, params.Workers)
 		} else {
@@ -133,7 +137,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	defer func() {
 		err := s.tracker.haltAndDump()
 		if err != nil {
-			log.Error("failed to write recovery file: ", err)
+			log.Errorf("failed to write recovery file: %v", err)
 		}
 	}()
 
