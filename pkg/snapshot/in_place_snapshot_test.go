@@ -109,7 +109,8 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	stateNodes := make([]models.StateNodeModel, 0)
 	pgQueryStateCids := `SELECT state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
 					  FROM eth.state_cids
-					  WHERE eth.state_cids.block_number = $1`
+					  WHERE eth.state_cids.block_number = $1
+					  ORDER BY state_cids.state_path`
 
 	err = db.Select(&stateNodes, pgQueryStateCids, snapshotHeight)
 	test.NoError(t, err)
@@ -137,7 +138,8 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	storageNodes := make([]models.StorageNodeModel, 0)
 	pgQueryStorageCids := `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path, storage_cids.mh_key
 					  FROM eth.storage_cids
-					  WHERE eth.storage_cids.block_number = $1`
+					  WHERE eth.storage_cids.block_number = $1
+					  ORDER BY storage_cids.storage_path`
 	err = db.Select(&storageNodes, pgQueryStorageCids, snapshotHeight)
 	test.NoError(t, err)
 	test.ExpectEqual(t, 1, len(storageNodes))
