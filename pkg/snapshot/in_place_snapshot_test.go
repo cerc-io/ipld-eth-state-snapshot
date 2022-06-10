@@ -1,3 +1,18 @@
+// Copyright © 2022 Vulcanize, Inc
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package snapshot
 
 import (
@@ -58,19 +73,17 @@ func writeData(t *testing.T) snapt.Publisher {
 	}
 
 	test.NoError(t, pub.PublishHeader(&fixt.Block5_Header))
-
 	test.NoError(t, tx.Commit())
 	return pub
 }
 
 func TestCreateInPlaceSnapshot(t *testing.T) {
 	test.NeedsDB(t)
-
 	ctx := context.Background()
 	db, err := sqlx.ConnectContext(ctx, "postgres", pgConfig.DbConnectionString())
 	test.NoError(t, err)
 
-	// clear existing test data
+	// Clear existing test data
 	pgDeleteTable := `DELETE FROM %s`
 	for _, tbl := range allTables {
 		_, err = db.Exec(fmt.Sprintf(pgDeleteTable, tbl.Name))
@@ -92,7 +105,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	err = CreateInPlaceSnapshot(config, params)
 	test.NoError(t, err)
 
-	// check inplace snapshot was created for state_cids
+	// Check inplace snapshot was created for state_cids
 	stateNodes := make([]models.StateNodeModel, 0)
 	pgQueryStateCids := `SELECT state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
 					  FROM eth.state_cids
@@ -120,9 +133,9 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		test.ExpectEqualBytes(t, expectedStateNode.Value, data)
 	}
 
-	// check inplace snapshot was created for state_cids
+	// Check inplace snapshot was created for state_cids
 	storageNodes := make([]models.StorageNodeModel, 0)
-	pgQueryStorageCids := `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path
+	pgQueryStorageCids := `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path, storage_cids.mh_key
 					  FROM eth.storage_cids
 					  WHERE eth.storage_cids.block_number = $1`
 	err = db.Select(&storageNodes, pgQueryStorageCids, snapshotHeight)
@@ -131,12 +144,15 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	expectedStorageNode := fixt.InPlaceBlocks[snapshotHeight].StorageNodes[0][0]
 	expectedStorageCID, _ := ipld.RawdataToCid(ipld.MEthStorageTrie, expectedStorageNode.Value, multihash.KECCAK_256)
 
-	test.ExpectEqual(t, models.StorageNodeModel{
-		BlockNumber: strconv.Itoa(snapshotHeight),
-		CID:         expectedStorageCID.String(),
-		NodeType:    2,
-		StorageKey:  expectedStorageNode.Key.Hex(),
-		StatePath:   fixt.InPlaceBlocks[snapshotHeight].StateNodes[2].Path,
-		Path:        expectedStorageNode.Path,
-	}, storageNodes[0])
+	test.ExpectEqual(t, strconv.Itoa(snapshotHeight), storageNodes[0].BlockNumber)
+	test.ExpectEqual(t, expectedStorageCID.String(), storageNodes[0].CID)
+	test.ExpectEqual(t, int(expectedStorageNode.NodeType), storageNodes[0].NodeType)
+	test.ExpectEqual(t, expectedStorageNode.Key.Hex(), storageNodes[0].StorageKey)
+	test.ExpectEqual(t, fixt.InPlaceBlocks[snapshotHeight].StateNodes[2].Path, storageNodes[0].StatePath)
+	test.ExpectEqual(t, expectedStorageNode.Path, storageNodes[0].Path)
+
+	var data []byte
+	err = db.Get(&data, pgIpfsGet, storageNodes[0].MhKey, snapshotHeight)
+	test.NoError(t, err)
+	test.ExpectEqualBytes(t, expectedStorageNode.Value, data)
 }
