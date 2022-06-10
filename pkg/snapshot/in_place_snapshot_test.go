@@ -3,11 +3,15 @@ package snapshot
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
+	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/models"
 	"github.com/jmoiron/sqlx"
+	"github.com/multiformats/go-multihash"
 
 	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
 	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/pg"
@@ -16,19 +20,10 @@ import (
 )
 
 var (
-	pgConfig = postgres.Config{
-		Hostname:     "localhost",
-		Port:         8077,
-		DatabaseName: "vulcanize_testing",
-		Username:     "vdbm",
-		Password:     "password",
+	pgConfig       = test.DefaultPgConfig
+	nodeInfo       = test.DefaultNodeInfo
+	snapshotHeight = 4
 
-		MaxIdle:         0,
-		MaxConnLifetime: 0,
-		MaxConns:        4,
-	}
-	nodeInfo = test.DefaultNodeInfo
-	// tables ordered according to fkey depedencies
 	allTables = []*snapt.Table{
 		&snapt.TableIPLDBlock,
 		&snapt.TableNodeInfo,
@@ -45,7 +40,7 @@ func writeData(t *testing.T) snapt.Publisher {
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
 
-	for _, block := range fixt.InPlaceBlocks {
+	for _, block := range fixt.InPlaceBlocks[0:snapshotHeight] {
 		headerID := block.Hash.String()
 
 		for _, stateNode := range block.StateNodes {
@@ -84,7 +79,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 
 	_ = writeData(t)
 
-	params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(5)}
+	params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
 	config := &Config{
 		Eth: &EthConfig{
 			NodeInfo: test.DefaultNodeInfo,
@@ -99,13 +94,49 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 
 	// check inplace snapshot was created for state_cids
 	stateNodes := make([]models.StateNodeModel, 0)
-	pgQueryStates := `SELECT state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id
+	pgQueryStateCids := `SELECT state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
 					  FROM eth.state_cids
 					  WHERE eth.state_cids.block_number = $1`
 
-	err = db.Select(&stateNodes, pgQueryStates, 5)
+	err = db.Select(&stateNodes, pgQueryStateCids, snapshotHeight)
 	test.NoError(t, err)
 	test.ExpectEqual(t, 4, len(stateNodes))
+	expectedStateNodes := fixt.InPlaceBlocks[snapshotHeight].StateNodes
 
-	// TODO: Compare stateNodes expected fields
+	pgIpfsGet := `SELECT data FROM public.blocks
+					WHERE key = $1 AND block_number = $2`
+
+	for index, stateNode := range stateNodes {
+		var data []byte
+		err = db.Get(&data, pgIpfsGet, stateNode.MhKey, snapshotHeight)
+		test.NoError(t, err)
+
+		expectedStateNode := expectedStateNodes[index]
+		expectedCID, _ := ipld.RawdataToCid(ipld.MEthStateTrie, expectedStateNode.Value, multihash.KECCAK_256)
+		test.ExpectEqual(t, expectedCID.String(), stateNode.CID)
+		test.ExpectEqual(t, int(expectedStateNode.NodeType), stateNode.NodeType)
+		test.ExpectEqual(t, expectedStateNode.Key, common.HexToHash(stateNode.StateKey))
+		test.ExpectEqualBytes(t, expectedStateNode.Path, stateNode.Path)
+		test.ExpectEqualBytes(t, expectedStateNode.Value, data)
+	}
+
+	// check inplace snapshot was created for state_cids
+	storageNodes := make([]models.StorageNodeModel, 0)
+	pgQueryStorageCids := `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path
+					  FROM eth.storage_cids
+					  WHERE eth.storage_cids.block_number = $1`
+	err = db.Select(&storageNodes, pgQueryStorageCids, snapshotHeight)
+	test.NoError(t, err)
+	test.ExpectEqual(t, 1, len(storageNodes))
+	expectedStorageNode := fixt.InPlaceBlocks[snapshotHeight].StorageNodes[0][0]
+	expectedStorageCID, _ := ipld.RawdataToCid(ipld.MEthStorageTrie, expectedStorageNode.Value, multihash.KECCAK_256)
+
+	test.ExpectEqual(t, models.StorageNodeModel{
+		BlockNumber: strconv.Itoa(snapshotHeight),
+		CID:         expectedStorageCID.String(),
+		NodeType:    2,
+		StorageKey:  expectedStorageNode.Key.Hex(),
+		StatePath:   fixt.InPlaceBlocks[snapshotHeight].StateNodes[2].Path,
+		Path:        expectedStorageNode.Path,
+	}, storageNodes[0])
 }

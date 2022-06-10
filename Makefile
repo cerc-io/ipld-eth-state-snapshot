@@ -17,3 +17,6 @@ build:
 
 test: mocks
 	go clean -testcache && go test -v ./...
+
+dbtest:
+	TEST_WITH_DB=true go clean -testcache && go test -v ./...
