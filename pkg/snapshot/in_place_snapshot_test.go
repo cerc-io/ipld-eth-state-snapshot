@@ -55,7 +55,7 @@ func writeData(t *testing.T) snapt.Publisher {
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
 
-	for _, block := range fixt.InPlaceBlocks[0:snapshotHeight] {
+	for _, block := range fixt.InPlaceSnapshotBlocks[0:snapshotHeight] {
 		headerID := block.Hash.String()
 
 		for _, stateNode := range block.StateNodes {
@@ -72,8 +72,9 @@ func writeData(t *testing.T) snapt.Publisher {
 
 	}
 
-	test.NoError(t, pub.PublishHeader(&fixt.Block5_Header))
 	test.NoError(t, tx.Commit())
+
+	test.NoError(t, pub.PublishHeader(&fixt.Block4_Header))
 	return pub
 }
 
@@ -107,7 +108,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 
 	// Check inplace snapshot was created for state_cids
 	stateNodes := make([]models.StateNodeModel, 0)
-	pgQueryStateCids := `SELECT state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
+	pgQueryStateCids := `SELECT cast(state_cids.block_number AS TEXT), state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
 					  FROM eth.state_cids
 					  WHERE eth.state_cids.block_number = $1
 					  ORDER BY state_cids.state_path`
@@ -115,7 +116,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	err = db.Select(&stateNodes, pgQueryStateCids, snapshotHeight)
 	test.NoError(t, err)
 	test.ExpectEqual(t, 4, len(stateNodes))
-	expectedStateNodes := fixt.InPlaceBlocks[snapshotHeight].StateNodes
+	expectedStateNodes := fixt.InPlaceSnapshotBlocks[snapshotHeight].StateNodes
 
 	pgIpfsGet := `SELECT data FROM public.blocks
 					WHERE key = $1 AND block_number = $2`
@@ -127,31 +128,36 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 
 		expectedStateNode := expectedStateNodes[index]
 		expectedCID, _ := ipld.RawdataToCid(ipld.MEthStateTrie, expectedStateNode.Value, multihash.KECCAK_256)
+		test.ExpectEqual(t, strconv.Itoa(snapshotHeight), stateNode.BlockNumber)
+		test.ExpectEqual(t, fixt.Block4_Header.Hash().String(), stateNode.HeaderID)
 		test.ExpectEqual(t, expectedCID.String(), stateNode.CID)
 		test.ExpectEqual(t, int(expectedStateNode.NodeType), stateNode.NodeType)
 		test.ExpectEqual(t, expectedStateNode.Key, common.HexToHash(stateNode.StateKey))
+		test.ExpectEqual(t, false, stateNode.Diff)
 		test.ExpectEqualBytes(t, expectedStateNode.Path, stateNode.Path)
 		test.ExpectEqualBytes(t, expectedStateNode.Value, data)
 	}
 
-	// Check inplace snapshot was created for state_cids
+	// Check inplace snapshot was created for storage_cids
 	storageNodes := make([]models.StorageNodeModel, 0)
-	pgQueryStorageCids := `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path, storage_cids.mh_key
+	pgQueryStorageCids := `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path, storage_cids.mh_key, storage_cids.header_id
 					  FROM eth.storage_cids
 					  WHERE eth.storage_cids.block_number = $1
 					  ORDER BY storage_cids.storage_path`
 	err = db.Select(&storageNodes, pgQueryStorageCids, snapshotHeight)
 	test.NoError(t, err)
 	test.ExpectEqual(t, 1, len(storageNodes))
-	expectedStorageNode := fixt.InPlaceBlocks[snapshotHeight].StorageNodes[0][0]
+	expectedStorageNode := fixt.InPlaceSnapshotBlocks[snapshotHeight].StorageNodes[0][0]
 	expectedStorageCID, _ := ipld.RawdataToCid(ipld.MEthStorageTrie, expectedStorageNode.Value, multihash.KECCAK_256)
 
 	test.ExpectEqual(t, strconv.Itoa(snapshotHeight), storageNodes[0].BlockNumber)
+	test.ExpectEqual(t, fixt.Block4_Header.Hash().String(), storageNodes[0].HeaderID)
 	test.ExpectEqual(t, expectedStorageCID.String(), storageNodes[0].CID)
 	test.ExpectEqual(t, int(expectedStorageNode.NodeType), storageNodes[0].NodeType)
 	test.ExpectEqual(t, expectedStorageNode.Key.Hex(), storageNodes[0].StorageKey)
-	test.ExpectEqual(t, fixt.InPlaceBlocks[snapshotHeight].StateNodes[2].Path, storageNodes[0].StatePath)
+	test.ExpectEqual(t, fixt.InPlaceSnapshotBlocks[snapshotHeight].StateNodes[2].Path, storageNodes[0].StatePath)
 	test.ExpectEqual(t, expectedStorageNode.Path, storageNodes[0].Path)
+	test.ExpectEqual(t, false, storageNodes[0].Diff)
 
 	var data []byte
 	err = db.Get(&data, pgIpfsGet, storageNodes[0].MhKey, snapshotHeight)

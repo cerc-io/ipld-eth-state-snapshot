@@ -30,7 +30,7 @@ type Block struct {
 	StorageNodes [][]snapt.Node
 }
 
-var InPlaceBlocks = []Block{
+var InPlaceSnapshotBlocks = []Block{
 	{
 		Hash:   common.HexToHash("0xe1bdb963128f645aa674b52a8c7ce00704762f27e2a6896abebd7954878f40e4"),
 		Number: big.NewInt(0),
@@ -165,7 +165,7 @@ var InPlaceBlocks = []Block{
 	},
 }
 
-var Block5_Header = types.Header{
+var Block4_Header = types.Header{
 	ParentHash:  common.HexToHash("0x9fc4aaaab26f0b43ac609c99ae50925e5dc9a25f103c0511fcff38c6b3158302"),
 	UncleHash:   common.HexToHash("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"),
 	Coinbase:    common.HexToAddress("0x0000000000000000000000000000000000000000"),
