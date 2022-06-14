@@ -16,9 +16,7 @@
 package snapshot
 
 import (
-	"context"
-
-	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
+	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -32,22 +30,21 @@ type InPlaceSnapshotParams struct {
 }
 
 func CreateInPlaceSnapshot(config *Config, params InPlaceSnapshotParams) error {
-	ctx := context.Background()
-	driver, err := postgres.NewPGXDriver(ctx, config.DB.ConnConfig, config.Eth.NodeInfo)
-	if err != nil {
-		return err
-	}
-	db := postgres.NewPostgresDB(driver)
+	db, err := sqlx.Connect("postgres", config.DB.ConnConfig.DbConnectionString())
 
-	tx, err := db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 
-	tx.Exec(ctx, stateSnapShotPgStr, params.StartHeight, params.EndHeight)
-	tx.Exec(ctx, storageSnapShotPgStr, params.StartHeight, params.EndHeight)
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
 
-	err = tx.Commit(ctx)
+	tx.Exec(stateSnapShotPgStr, params.StartHeight, params.EndHeight)
+	tx.Exec(storageSnapShotPgStr, params.StartHeight, params.EndHeight)
+
+	err = tx.Commit()
 	if err != nil {
 		return err
 	}

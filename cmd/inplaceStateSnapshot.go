@@ -55,9 +55,9 @@ func inPlaceStateSnapshot() {
 func init() {
 	rootCmd.AddCommand(inPlaceStateSnapshotCmd)
 
-	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_START_HEIGHT_CLI, "", "start block height for in-place snapshot")
-	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_END_HEIGHT_CLI, "", "end block height for in-place snapshot")
+	inPlaceStateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_START_HEIGHT_CLI, "", "start block height for in-place snapshot")
+	inPlaceStateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_END_HEIGHT_CLI, "", "end block height for in-place snapshot")
 
-	viper.BindPFlag(snapshot.SNAPSHOT_START_HEIGHT_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_START_HEIGHT_CLI))
-	viper.BindPFlag(snapshot.SNAPSHOT_END_HEIGHT_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_END_HEIGHT_CLI))
+	viper.BindPFlag(snapshot.SNAPSHOT_START_HEIGHT_TOML, inPlaceStateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_START_HEIGHT_CLI))
+	viper.BindPFlag(snapshot.SNAPSHOT_END_HEIGHT_TOML, inPlaceStateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_END_HEIGHT_CLI))
 }

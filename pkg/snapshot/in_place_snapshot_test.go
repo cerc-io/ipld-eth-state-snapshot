@@ -17,15 +17,14 @@ package snapshot
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/models"
-	"github.com/jmoiron/sqlx"
 	"github.com/multiformats/go-multihash"
 
 	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
@@ -48,14 +47,12 @@ var (
 	}
 )
 
-func writeData(t *testing.T) snapt.Publisher {
-	driver, err := postgres.NewPGXDriver(context.Background(), pgConfig, nodeInfo)
-	test.NoError(t, err)
-	pub := pg.NewPublisher(postgres.NewPostgresDB(driver))
+func writeData(t *testing.T, db *postgres.DB) snapt.Publisher {
+	pub := pg.NewPublisher(db)
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
 
-	for _, block := range fixt.InPlaceSnapshotBlocks[0:snapshotHeight] {
+	for _, block := range fixt.InPlaceSnapshotBlocks {
 		headerID := block.Hash.String()
 
 		for _, stateNode := range block.StateNodes {
@@ -81,17 +78,13 @@ func writeData(t *testing.T) snapt.Publisher {
 func TestCreateInPlaceSnapshot(t *testing.T) {
 	test.NeedsDB(t)
 	ctx := context.Background()
-	db, err := sqlx.ConnectContext(ctx, "postgres", pgConfig.DbConnectionString())
+	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
 	test.NoError(t, err)
+	db := postgres.NewPostgresDB(driver)
 
-	// Clear existing test data
-	pgDeleteTable := `DELETE FROM %s`
-	for _, tbl := range allTables {
-		_, err = db.Exec(fmt.Sprintf(pgDeleteTable, tbl.Name))
-		test.NoError(t, err)
-	}
+	sql.TearDownDB(t, db)
 
-	_ = writeData(t)
+	_ = writeData(t, db)
 
 	params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
 	config := &Config{
@@ -112,17 +105,17 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 					  FROM eth.state_cids
 					  WHERE eth.state_cids.block_number = $1
 					  ORDER BY state_cids.state_path`
-	err = db.Select(&stateNodes, pgQueryStateCids, snapshotHeight)
+	err = db.Select(ctx, &stateNodes, pgQueryStateCids, snapshotHeight)
 	test.NoError(t, err)
 	test.ExpectEqual(t, 4, len(stateNodes))
-	expectedStateNodes := fixt.InPlaceSnapshotBlocks[snapshotHeight].StateNodes
+	expectedStateNodes := fixt.ExpectedStateNodes
 
 	pgIpfsGet := `SELECT data FROM public.blocks
 					WHERE key = $1 AND block_number = $2`
 
 	for index, stateNode := range stateNodes {
 		var data []byte
-		err = db.Get(&data, pgIpfsGet, stateNode.MhKey, snapshotHeight)
+		err = db.Get(ctx, &data, pgIpfsGet, stateNode.MhKey, snapshotHeight)
 		test.NoError(t, err)
 
 		expectedStateNode := expectedStateNodes[index]
@@ -143,7 +136,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 					  FROM eth.storage_cids
 					  WHERE eth.storage_cids.block_number = $1
 					  ORDER BY storage_cids.state_path, storage_cids.storage_path`
-	err = db.Select(&storageNodes, pgQueryStorageCids, snapshotHeight)
+	err = db.Select(ctx, &storageNodes, pgQueryStorageCids, snapshotHeight)
 	test.NoError(t, err)
 
 	for index, storageNode := range storageNodes {
@@ -160,7 +153,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		test.ExpectEqual(t, false, storageNode.Diff)
 
 		var data []byte
-		err = db.Get(&data, pgIpfsGet, storageNode.MhKey, snapshotHeight)
+		err = db.Get(ctx, &data, pgIpfsGet, storageNode.MhKey, snapshotHeight)
 		test.NoError(t, err)
 		test.ExpectEqualBytes(t, expectedStorageNode.Value, data)
 	}
