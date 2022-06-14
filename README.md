@@ -6,7 +6,15 @@
 
 ## Usage
 
+For state snapshot from LevelDB
+```bash
 ./ipld-eth-state-snapshot stateSnapshot --config={path to toml config file}
+```
+
+For in-place snapshot in database
+```bash
+./ipld-eth-state-snapshot inPlaceStateSnapshot --config={path to toml config file}
+```
 
 ### Config
 
