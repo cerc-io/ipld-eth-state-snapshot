@@ -69,6 +69,17 @@ func NewConfig(mode SnapshotMode) (*Config, error) {
 	return ret, ret.Init(mode)
 }
 
+func NewInPlaceSnapshotConfig() *Config {
+	ret := &Config{
+		&EthConfig{},
+		&DBConfig{},
+		&FileConfig{},
+	}
+	ret.DB.Init()
+
+	return ret
+}
+
 // Init Initialises config
 func (c *Config) Init(mode SnapshotMode) error {
 	viper.BindEnv(ETH_NODE_ID_TOML, ETH_NODE_ID)

@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
@@ -203,7 +204,12 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 	if err != nil {
 		return err
 	}
-	defer func() { err = CommitOrRollback(tx, err) }()
+	defer func() {
+		err = CommitOrRollback(tx, err)
+		if err != nil {
+			logrus.Errorf("CommitOrRollback failed: %s", err)
+		}
+	}()
 
 	for it.Next(true) {
 		res, err := resolveNode(it, s.stateDB.TrieDB())

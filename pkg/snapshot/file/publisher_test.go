@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
+	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
-	"github.com/jackc/pgx/v4"
 
 	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
 	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
@@ -88,27 +89,23 @@ func TestPgCopy(t *testing.T) {
 	pub := writeFiles(t, dir)
 
 	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, pgConfig.DbConnectionString())
+	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
 	test.NoError(t, err)
+	db := postgres.NewPostgresDB(driver)
 
-	// clear existing test data
-	pgDeleteTable := `DELETE FROM %s`
-	for _, tbl := range allTables {
-		_, err = conn.Exec(ctx, fmt.Sprintf(pgDeleteTable, tbl.Name))
-		test.NoError(t, err)
-	}
+	sql.TearDownDB(t, db)
 
 	// copy from files
 	pgCopyStatement := `COPY %s FROM '%s' CSV`
 	for _, tbl := range perBlockTables {
 		stm := fmt.Sprintf(pgCopyStatement, tbl.Name, TableFile(pub.dir, tbl.Name))
-		_, err = conn.Exec(ctx, stm)
+		_, err = db.Exec(ctx, stm)
 		test.NoError(t, err)
 	}
 	for i := uint32(0); i < pub.txCounter; i++ {
 		for _, tbl := range perNodeTables {
 			stm := fmt.Sprintf(pgCopyStatement, tbl.Name, TableFile(pub.txDir(i), tbl.Name))
-			_, err = conn.Exec(ctx, stm)
+			_, err = db.Exec(ctx, stm)
 			test.NoError(t, err)
 		}
 	}
@@ -122,7 +119,7 @@ func TestPgCopy(t *testing.T) {
 		BlockHash string
 	}
 	var header res
-	err = conn.QueryRow(ctx, pgQueryHeader, fixt.Block1_Header.Number.Uint64()).Scan(
+	err = db.QueryRow(ctx, pgQueryHeader, fixt.Block1_Header.Number.Uint64()).Scan(
 		&header.CID, &header.BlockHash)
 	test.NoError(t, err)
 

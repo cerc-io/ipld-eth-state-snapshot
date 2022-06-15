@@ -2,12 +2,11 @@ package pg
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
-	"github.com/jackc/pgx/v4"
 
 	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
 	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
@@ -27,10 +26,8 @@ var (
 	}
 )
 
-func writeData(t *testing.T) *publisher {
-	driver, err := postgres.NewPGXDriver(context.Background(), pgConfig, nodeInfo)
-	test.NoError(t, err)
-	pub := NewPublisher(postgres.NewPostgresDB(driver))
+func writeData(t *testing.T, db *postgres.DB) *publisher {
+	pub := NewPublisher(db)
 	test.NoError(t, pub.PublishHeader(&fixt.Block1_Header))
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
@@ -47,17 +44,13 @@ func TestBasic(t *testing.T) {
 	test.NeedsDB(t)
 
 	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, pgConfig.DbConnectionString())
+	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
 	test.NoError(t, err)
+	db := postgres.NewPostgresDB(driver)
 
-	// clear existing test data
-	pgDeleteTable := `DELETE FROM %s`
-	for _, tbl := range allTables {
-		_, err = conn.Exec(ctx, fmt.Sprintf(pgDeleteTable, tbl.Name))
-		test.NoError(t, err)
-	}
+	sql.TearDownDB(t, db)
 
-	_ = writeData(t)
+	_ = writeData(t, db)
 
 	// check header was successfully committed
 	pgQueryHeader := `SELECT cid, block_hash
@@ -68,7 +61,7 @@ func TestBasic(t *testing.T) {
 		BlockHash string
 	}
 	var header res
-	err = conn.QueryRow(ctx, pgQueryHeader, fixt.Block1_Header.Number.Uint64()).Scan(
+	err = db.QueryRow(ctx, pgQueryHeader, fixt.Block1_Header.Number.Uint64()).Scan(
 		&header.CID, &header.BlockHash)
 	test.NoError(t, err)
 

@@ -25,6 +25,9 @@
     blockHeight = -1
     recoveryFile = "recovery_file"
 
+    startHeight = 1
+    endHeight = 12
+
 [file]
     outputDir = "output_dir/"
 

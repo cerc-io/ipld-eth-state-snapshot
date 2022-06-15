@@ -2,3 +2,4 @@
 .vscode/
 ipld-eth-state-snapshot
 mocks/
+.vscode
