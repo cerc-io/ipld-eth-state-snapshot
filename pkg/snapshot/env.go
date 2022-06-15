@@ -23,6 +23,7 @@ const (
 	SNAPSHOT_MODE          = "SNAPSHOT_MODE"
 	SNAPSHOT_START_HEIGHT  = "SNAPSHOT_START_HEIGHT"
 	SNAPSHOT_END_HEIGHT    = "SNAPSHOT_END_HEIGHT"
+	SNAPSHOT_ACCOUNTS      = "SNAPSHOT_ACCOUNTS"
 
 	LOGRUS_LEVEL = "LOGRUS_LEVEL"
 	LOGRUS_FILE  = "LOGRUS_FILE"
@@ -62,6 +63,7 @@ const (
 	SNAPSHOT_MODE_TOML          = "snapshot.mode"
 	SNAPSHOT_START_HEIGHT_TOML  = "snapshot.startHeight"
 	SNAPSHOT_END_HEIGHT_TOML    = "snapshot.endHeight"
+	SNAPSHOT_ACCOUNTS_TOML      = "snapshot.accounts"
 
 	LOGRUS_LEVEL_TOML = "log.level"
 	LOGRUS_FILE_TOML  = "log.file"
@@ -101,6 +103,7 @@ const (
 	SNAPSHOT_MODE_CLI          = "snapshot-mode"
 	SNAPSHOT_START_HEIGHT_CLI  = "start-height"
 	SNAPSHOT_END_HEIGHT_CLI    = "end-height"
+	SNAPSHOT_ACCOUNTS_CLI      = "snapshot-accounts"
 
 	LOGRUS_LEVEL_CLI = "log-level"
 	LOGRUS_FILE_CLI  = "log-file"

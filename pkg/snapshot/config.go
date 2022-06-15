@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
@@ -38,9 +40,10 @@ const (
 
 // Config contains params for both databases the service uses
 type Config struct {
-	Eth  *EthConfig
-	DB   *DBConfig
-	File *FileConfig
+	Eth     *EthConfig
+	DB      *DBConfig
+	File    *FileConfig
+	Service *ServiceConfig
 }
 
 // EthConfig is config parameters for the chain.
@@ -60,11 +63,17 @@ type FileConfig struct {
 	OutputDir string
 }
 
+type ServiceConfig struct {
+	AllowedPaths    [][]byte
+	AllowedAccounts []common.Address
+}
+
 func NewConfig(mode SnapshotMode) (*Config, error) {
 	ret := &Config{
 		&EthConfig{},
 		&DBConfig{},
 		&FileConfig{},
+		&ServiceConfig{},
 	}
 	return ret, ret.Init(mode)
 }
@@ -110,7 +119,7 @@ func (c *Config) Init(mode SnapshotMode) error {
 	default:
 		return fmt.Errorf("no output mode specified")
 	}
-	return nil
+	return c.Service.Init()
 }
 
 func (c *DBConfig) Init() {
@@ -145,6 +154,21 @@ func (c *FileConfig) Init() error {
 	if c.OutputDir == "" {
 		logrus.Infof("no output directory set, using default: %s", defaultOutputDir)
 		c.OutputDir = defaultOutputDir
+	}
+	return nil
+}
+
+func (c *ServiceConfig) Init() error {
+	viper.BindEnv(SNAPSHOT_ACCOUNTS_TOML, SNAPSHOT_ACCOUNTS)
+	allowedAccounts := viper.GetStringSlice(SNAPSHOT_ACCOUNTS)
+	accountsLen := len(allowedAccounts)
+	if accountsLen != 0 {
+		c.AllowedAccounts = make([]common.Address, accountsLen)
+		for i, allowedAccount := range allowedAccounts {
+			c.AllowedAccounts[i] = common.HexToAddress(allowedAccount)
+		}
+	} else {
+		logrus.Infof("no snapshot addresses specified, will perform snapshot of entire trie(s)")
 	}
 	return nil
 }
