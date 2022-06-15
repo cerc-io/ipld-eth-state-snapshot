@@ -69,13 +69,12 @@ func stateSnapshot() {
 		logWithCommand.Fatal(err)
 	}
 	workers := viper.GetUint(snapshot.SNAPSHOT_WORKERS_TOML)
-
 	if height < 0 {
-		if err := snapshotService.CreateLatestSnapshot(workers); err != nil {
+		if err := snapshotService.CreateLatestSnapshot(workers, config.Service.AllowedAccounts); err != nil {
 			logWithCommand.Fatal(err)
 		}
 	} else {
-		params := snapshot.SnapshotParams{Workers: workers, Height: uint64(height)}
+		params := snapshot.SnapshotParams{Workers: workers, Height: uint64(height), WatchedAddresses: config.Service.AllowedAccounts}
 		if err := snapshotService.CreateSnapshot(params); err != nil {
 			logWithCommand.Fatal(err)
 		}
@@ -93,6 +92,7 @@ func init() {
 	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_RECOVERY_FILE_CLI, "", "file to recover from a previous iteration")
 	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_MODE_CLI, "postgres", "output mode for snapshot ('file' or 'postgres')")
 	stateSnapshotCmd.PersistentFlags().String(snapshot.FILE_OUTPUT_DIR_CLI, "", "directory for writing ouput to while operating in 'file' mode")
+	stateSnapshotCmd.PersistentFlags().StringArray(snapshot.SNAPSHOT_ACCOUNTS_CLI, nil, "list of account addresses to limit snapshot to")
 
 	viper.BindPFlag(snapshot.LVL_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.LVL_DB_PATH_CLI))
 	viper.BindPFlag(snapshot.ANCIENT_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.ANCIENT_DB_PATH_CLI))
@@ -101,4 +101,5 @@ func init() {
 	viper.BindPFlag(snapshot.SNAPSHOT_RECOVERY_FILE_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_RECOVERY_FILE_CLI))
 	viper.BindPFlag(snapshot.SNAPSHOT_MODE_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_MODE_CLI))
 	viper.BindPFlag(snapshot.FILE_OUTPUT_DIR_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.FILE_OUTPUT_DIR_CLI))
+	viper.BindPFlag(snapshot.SNAPSHOT_ACCOUNTS_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_ACCOUNTS_CLI))
 }

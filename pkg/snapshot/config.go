@@ -64,8 +64,7 @@ type FileConfig struct {
 }
 
 type ServiceConfig struct {
-	AllowedPaths    [][]byte
-	AllowedAccounts []common.Address
+	AllowedAccounts map[common.Address]struct{}
 }
 
 func NewConfig(mode SnapshotMode) (*Config, error) {
@@ -163,9 +162,9 @@ func (c *ServiceConfig) Init() error {
 	allowedAccounts := viper.GetStringSlice(SNAPSHOT_ACCOUNTS)
 	accountsLen := len(allowedAccounts)
 	if accountsLen != 0 {
-		c.AllowedAccounts = make([]common.Address, accountsLen)
-		for i, allowedAccount := range allowedAccounts {
-			c.AllowedAccounts[i] = common.HexToAddress(allowedAccount)
+		c.AllowedAccounts = make(map[common.Address]struct{}, accountsLen)
+		for _, allowedAccount := range allowedAccounts {
+			c.AllowedAccounts[common.HexToAddress(allowedAccount)] = struct{}{}
 		}
 	} else {
 		logrus.Infof("no snapshot addresses specified, will perform snapshot of entire trie(s)")
