@@ -28,6 +28,7 @@ import (
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	dshelp "github.com/ipfs/go-ipfs-ds-help"
 	"github.com/multiformats/go-multihash"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
@@ -118,7 +119,12 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 		return err
 	}
 	tx := pubTx{snapTx, nil}
-	defer func() { err = snapt.CommitOrRollback(tx, err) }()
+	defer func() {
+		err = snapt.CommitOrRollback(tx, err)
+		if err != nil {
+			logrus.Errorf("CommitOrRollback failed: %s", err)
+		}
+	}()
 
 	if _, err = tx.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
 		return err

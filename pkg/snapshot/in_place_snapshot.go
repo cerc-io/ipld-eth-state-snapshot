@@ -17,7 +17,7 @@ package snapshot
 
 import (
 	"github.com/jmoiron/sqlx"
-
+	"github.com/sirupsen/logrus"
 	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
@@ -33,7 +33,6 @@ type InPlaceSnapshotParams struct {
 
 func CreateInPlaceSnapshot(config *Config, params InPlaceSnapshotParams) error {
 	db, err := sqlx.Connect("postgres", config.DB.ConnConfig.DbConnectionString())
-
 	if err != nil {
 		return err
 	}
@@ -42,11 +41,18 @@ func CreateInPlaceSnapshot(config *Config, params InPlaceSnapshotParams) error {
 	if err != nil {
 		return err
 	}
-	defer func() { err = CommitOrRollback(tx, err) }()
+
+	defer func() {
+		err = CommitOrRollback(tx, err)
+		if err != nil {
+			logrus.Errorf("CommitOrRollback failed: %s", err)
+		}
+	}()
 
 	if _, err = tx.Exec(stateSnapShotPgStr, params.StartHeight, params.EndHeight); err != nil {
 		return err
 	}
+
 	if _, err = tx.Exec(storageSnapShotPgStr, params.StartHeight, params.EndHeight); err != nil {
 		return err
 	}
