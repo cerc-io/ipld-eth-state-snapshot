@@ -178,6 +178,80 @@ var InPlaceSnapshotBlocks = []Block{
 			},
 		},
 	},
+	// Destory contracts Test1 and Test2.
+	{
+		Hash:   common.HexToHash("0xa1f10477ca69841685d5fdc24214767379b937b66a17f005d4352d5a783e8982"),
+		Number: big.NewInt(4),
+		StateNodes: []snapt.Node{
+			// State node for sender account.
+			{
+				NodeType: 2,
+				Key:      common.HexToHash("0x67ab3c0dd775f448af7fb41243415ed6fb975d1530a2d828f69bea7346231ad7"),
+				Path:     []byte{},
+				Value:    []byte{248, 119, 161, 32, 103, 171, 60, 13, 215, 117, 244, 72, 175, 127, 180, 18, 67, 65, 94, 214, 251, 151, 93, 21, 48, 162, 216, 40, 246, 155, 234, 115, 70, 35, 26, 215, 184, 83, 248, 81, 5, 141, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 86, 232, 31, 23, 27, 204, 85, 166, 255, 131, 69, 230, 146, 192, 248, 110, 91, 72, 224, 27, 153, 108, 173, 192, 1, 98, 47, 181, 227, 99, 180, 33, 160, 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112},
+			},
+			// Branch node for removed type.
+			{
+				NodeType: 3,
+				Path:     []byte{6},
+				Value:    []byte{},
+			},
+			// State node for destroying contract Test1.
+			{
+				NodeType: 3,
+				Path:     []byte{9},
+				Key:      common.HexToHash("0x9397e33dedda4763aea143fc6151ebcd9a93f62db7a6a556d46c585d82ad2afc"),
+				Value:    []byte{},
+			},
+			// State node for destroying contract Test2.
+			{
+				NodeType: 3,
+				Path:     []byte{10},
+				Key:      common.HexToHash("0xa44b5f4b47ded891709350af6a6e4d56602228a70279bdad4f0f64042445b4b9"),
+				Value:    []byte{},
+			},
+		},
+		StorageNodes: [][]snapt.Node{
+			{},
+			{},
+			{
+				// Branch node for removed type.
+				{
+					NodeType: 3,
+					Path:     []byte{},
+					Value:    []byte{},
+				},
+				// Storage node for contract Test1 state variable count.
+				{
+					NodeType: 3,
+					Path:     []byte{2},
+					Key:      common.HexToHash("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563"),
+					Value:    []byte{},
+				},
+				// Storage node for contract Test1 state variable initialCount.
+				{
+					NodeType: 3,
+					Path:     []byte{11},
+					Key:      common.HexToHash("0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6"),
+					Value:    []byte{},
+				},
+			},
+			{
+				// Storage node for contract Test2 state variable test.
+				{
+					NodeType: 3,
+					Path:     []byte{},
+					Key:      common.HexToHash("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563"),
+					Value:    []byte{},
+				},
+			},
+		},
+	},
+}
+
+type StorageNodeWithState struct {
+	snapt.Node
+	StatePath []byte
 }
 
 // Expected state nodes at snapshot height.
@@ -205,11 +279,6 @@ var ExpectedStateNodes = []snapt.Node{
 		Key:      common.HexToHash("0xa44b5f4b47ded891709350af6a6e4d56602228a70279bdad4f0f64042445b4b9"),
 		Value:    []byte{248, 105, 160, 52, 75, 95, 75, 71, 222, 216, 145, 112, 147, 80, 175, 106, 110, 77, 86, 96, 34, 40, 167, 2, 121, 189, 173, 79, 15, 100, 4, 36, 69, 180, 185, 184, 70, 248, 68, 1, 128, 160, 130, 30, 37, 86, 162, 144, 200, 100, 5, 248, 22, 10, 45, 102, 32, 66, 164, 49, 186, 69, 107, 157, 178, 101, 199, 155, 184, 55, 192, 75, 229, 240, 160, 86, 36, 245, 233, 5, 167, 42, 118, 181, 35, 178, 216, 149, 56, 146, 147, 19, 8, 140, 137, 234, 0, 160, 27, 220, 33, 204, 6, 152, 239, 177, 52},
 	},
-}
-
-type StorageNodeWithState struct {
-	snapt.Node
-	StatePath []byte
 }
 
 // Expected storage nodes at snapshot height.
@@ -251,10 +320,76 @@ var ExpectedStorageNodes = []StorageNodeWithState{
 	},
 }
 
+// Expected state nodes at snapshot height after destroying contracts.
+var ExpectedStateNodesAfterContractDestruction = []snapt.Node{
+	{
+		NodeType: 2,
+		Path:     []byte{},
+		Key:      common.HexToHash("0x67ab3c0dd775f448af7fb41243415ed6fb975d1530a2d828f69bea7346231ad7"),
+		Value:    []byte{248, 119, 161, 32, 103, 171, 60, 13, 215, 117, 244, 72, 175, 127, 180, 18, 67, 65, 94, 214, 251, 151, 93, 21, 48, 162, 216, 40, 246, 155, 234, 115, 70, 35, 26, 215, 184, 83, 248, 81, 5, 141, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 86, 232, 31, 23, 27, 204, 85, 166, 255, 131, 69, 230, 146, 192, 248, 110, 91, 72, 224, 27, 153, 108, 173, 192, 1, 98, 47, 181, 227, 99, 180, 33, 160, 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112},
+	},
+	{
+		NodeType: 3,
+		Path:     []byte{6},
+		Value:    []byte{},
+	},
+	{
+		NodeType: 3,
+		Path:     []byte{9},
+		Key:      common.HexToHash("0x9397e33dedda4763aea143fc6151ebcd9a93f62db7a6a556d46c585d82ad2afc"),
+		Value:    []byte{},
+	},
+	{
+		NodeType: 3,
+		Path:     []byte{10},
+		Key:      common.HexToHash("0xa44b5f4b47ded891709350af6a6e4d56602228a70279bdad4f0f64042445b4b9"),
+		Value:    []byte{},
+	},
+}
+
+// Expected storage nodes at snapshot height after destroying contracts..
+var ExpectedStorageNodesAfterContractDestruction = []StorageNodeWithState{
+	{
+		Node: snapt.Node{
+			NodeType: 3,
+			Path:     []byte{},
+			Value:    []byte{},
+		},
+		StatePath: []byte{9},
+	},
+	{
+		Node: snapt.Node{
+			NodeType: 3,
+			Path:     []byte{2},
+			Key:      common.HexToHash("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563"),
+			Value:    []byte{},
+		},
+		StatePath: []byte{9},
+	},
+	{
+		Node: snapt.Node{
+			NodeType: 3,
+			Path:     []byte{11},
+			Key:      common.HexToHash("0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6"),
+			Value:    []byte{},
+		},
+		StatePath: []byte{9},
+	},
+	{
+		Node: snapt.Node{
+			NodeType: 3,
+			Path:     []byte{},
+			Key:      common.HexToHash("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563"),
+			Value:    []byte{},
+		},
+		StatePath: []byte{10},
+	},
+}
+
 // Block header at snapshot height.
 // Required in database when executing inPlaceStateSnapshot.
-var Block4_Header = types.Header{
-	ParentHash:  common.HexToHash("0x9fc4aaaab26f0b43ac609c99ae50925e5dc9a25f103c0511fcff38c6b3158302"),
+var Block5_Header = types.Header{
+	ParentHash:  common.HexToHash("0xa1f10477ca69841685d5fdc24214767379b937b66a17f005d4352d5a783e8982"),
 	UncleHash:   common.HexToHash("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"),
 	Coinbase:    common.HexToAddress("0x0000000000000000000000000000000000000000"),
 	Root:        common.HexToHash("0x53580584816f617295ea26c0e17641e0120cab2f0a8ffb53a866fd53aa8e8c2d"),
@@ -262,7 +397,7 @@ var Block4_Header = types.Header{
 	ReceiptHash: common.HexToHash("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"),
 	Bloom:       types.Bloom{},
 	Difficulty:  big.NewInt(+2),
-	Number:      big.NewInt(4),
+	Number:      big.NewInt(5),
 	GasLimit:    4704588,
 	GasUsed:     0,
 	Time:        1492010458,

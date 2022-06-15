@@ -36,7 +36,7 @@ import (
 var (
 	pgConfig       = test.DefaultPgConfig
 	nodeInfo       = test.DefaultNodeInfo
-	snapshotHeight = 4
+	snapshotHeight = 5
 
 	allTables = []*snapt.Table{
 		&snapt.TableIPLDBlock,
@@ -45,14 +45,76 @@ var (
 		&snapt.TableStateNode,
 		&snapt.TableStorageNode,
 	}
+
+	pgQueryStateCids = `SELECT cast(state_cids.block_number AS TEXT), state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
+		FROM eth.state_cids
+		WHERE eth.state_cids.block_number = $1
+		ORDER BY state_cids.state_path`
+
+	pgQueryStorageCids = `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path, storage_cids.mh_key, storage_cids.header_id
+		FROM eth.storage_cids
+		WHERE eth.storage_cids.block_number = $1
+		ORDER BY storage_cids.state_path, storage_cids.storage_path`
+
+	pgIpfsGet = `SELECT data FROM public.blocks
+		WHERE key = $1 AND block_number = $2`
 )
 
-func writeData(t *testing.T, db *postgres.DB) snapt.Publisher {
+func TestCreateInPlaceSnapshot(t *testing.T) {
+	test.NeedsDB(t)
+	ctx := context.Background()
+	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
+	test.NoError(t, err)
+	db := postgres.NewPostgresDB(driver)
+
+	config := &Config{
+		Eth: &EthConfig{
+			NodeInfo: test.DefaultNodeInfo,
+		},
+		DB: &DBConfig{
+			URI:        pgConfig.DbConnectionString(),
+			ConnConfig: pgConfig,
+		},
+	}
+
+	t.Run("Snapshot for blocks with contract deployment and transaction", func(t *testing.T) {
+		sql.TearDownDB(t, db)
+		_ = writeData(t, db, 4)
+
+		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
+		err = CreateInPlaceSnapshot(config, params)
+		test.NoError(t, err)
+
+		// Check inplace snapshot was created for state_cids
+		compareStateNodes(t, db, fixt.ExpectedStateNodes)
+
+		// Check inplace snapshot was created for storage_cids
+		compareStorageNodes(t, db, fixt.ExpectedStorageNodes)
+	})
+
+	t.Run("Snapshot for blocks with contract deployment and transaction", func(t *testing.T) {
+		t.Skip("Fix in-place snapshot function for removed type nodes")
+		sql.TearDownDB(t, db)
+		_ = writeData(t, db, 5)
+
+		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
+		err = CreateInPlaceSnapshot(config, params)
+		test.NoError(t, err)
+
+		// Check inplace snapshot was created for state_cids
+		compareStateNodes(t, db, fixt.ExpectedStateNodesAfterContractDestruction)
+
+		// Check inplace snapshot was created for storage_cids
+		compareStorageNodes(t, db, fixt.ExpectedStorageNodesAfterContractDestruction)
+	})
+}
+
+func writeData(t *testing.T, db *postgres.DB, height int) snapt.Publisher {
 	pub := pg.NewPublisher(db)
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
 
-	for _, block := range fixt.InPlaceSnapshotBlocks {
+	for _, block := range fixt.InPlaceSnapshotBlocks[:height] {
 		headerID := block.Hash.String()
 
 		for _, stateNode := range block.StateNodes {
@@ -66,52 +128,20 @@ func writeData(t *testing.T, db *postgres.DB) snapt.Publisher {
 				test.NoError(t, pub.PublishStorageNode(&storageNode, headerID, block.Number, stateNode.Path, tx))
 			}
 		}
-
 	}
 
 	test.NoError(t, tx.Commit())
 
-	test.NoError(t, pub.PublishHeader(&fixt.Block4_Header))
+	test.NoError(t, pub.PublishHeader(&fixt.Block5_Header))
 	return pub
 }
 
-func TestCreateInPlaceSnapshot(t *testing.T) {
-	test.NeedsDB(t)
+func compareStateNodes(t *testing.T, db *postgres.DB, expectedStateNodes []snapt.Node) {
 	ctx := context.Background()
-	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
-	test.NoError(t, err)
-	db := postgres.NewPostgresDB(driver)
-
-	sql.TearDownDB(t, db)
-
-	_ = writeData(t, db)
-
-	params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
-	config := &Config{
-		Eth: &EthConfig{
-			NodeInfo: test.DefaultNodeInfo,
-		},
-		DB: &DBConfig{
-			URI:        pgConfig.DbConnectionString(),
-			ConnConfig: pgConfig,
-		},
-	}
-	err = CreateInPlaceSnapshot(config, params)
-	test.NoError(t, err)
-
-	// Check inplace snapshot was created for state_cids
 	stateNodes := make([]models.StateNodeModel, 0)
-	pgQueryStateCids := `SELECT cast(state_cids.block_number AS TEXT), state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
-					  FROM eth.state_cids
-					  WHERE eth.state_cids.block_number = $1
-					  ORDER BY state_cids.state_path`
-	err = db.Select(ctx, &stateNodes, pgQueryStateCids, snapshotHeight)
+	err := db.Select(ctx, &stateNodes, pgQueryStateCids, snapshotHeight)
 	test.NoError(t, err)
-	test.ExpectEqual(t, 4, len(stateNodes))
-	expectedStateNodes := fixt.ExpectedStateNodes
-
-	pgIpfsGet := `SELECT data FROM public.blocks
-					WHERE key = $1 AND block_number = $2`
+	test.ExpectEqual(t, len(expectedStateNodes), len(stateNodes))
 
 	for index, stateNode := range stateNodes {
 		var data []byte
@@ -121,7 +151,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		expectedStateNode := expectedStateNodes[index]
 		expectedCID, _ := ipld.RawdataToCid(ipld.MEthStateTrie, expectedStateNode.Value, multihash.KECCAK_256)
 		test.ExpectEqual(t, strconv.Itoa(snapshotHeight), stateNode.BlockNumber)
-		test.ExpectEqual(t, fixt.Block4_Header.Hash().String(), stateNode.HeaderID)
+		test.ExpectEqual(t, fixt.Block5_Header.Hash().String(), stateNode.HeaderID)
 		test.ExpectEqual(t, expectedCID.String(), stateNode.CID)
 		test.ExpectEqual(t, int(expectedStateNode.NodeType), stateNode.NodeType)
 		test.ExpectEqual(t, expectedStateNode.Key, common.HexToHash(stateNode.StateKey))
@@ -129,22 +159,21 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		test.ExpectEqualBytes(t, expectedStateNode.Path, stateNode.Path)
 		test.ExpectEqualBytes(t, expectedStateNode.Value, data)
 	}
+}
 
-	// Check inplace snapshot was created for storage_cids
+func compareStorageNodes(t *testing.T, db *postgres.DB, expectedStorageNodes []fixt.StorageNodeWithState) {
+	ctx := context.Background()
 	storageNodes := make([]models.StorageNodeModel, 0)
-	pgQueryStorageCids := `SELECT cast(storage_cids.block_number AS TEXT), storage_cids.cid, storage_cids.state_path, storage_cids.storage_leaf_key, storage_cids.node_type, storage_cids.storage_path, storage_cids.mh_key, storage_cids.header_id
-					  FROM eth.storage_cids
-					  WHERE eth.storage_cids.block_number = $1
-					  ORDER BY storage_cids.state_path, storage_cids.storage_path`
-	err = db.Select(ctx, &storageNodes, pgQueryStorageCids, snapshotHeight)
+	err := db.Select(ctx, &storageNodes, pgQueryStorageCids, snapshotHeight)
 	test.NoError(t, err)
+	test.ExpectEqual(t, len(expectedStorageNodes), len(storageNodes))
 
 	for index, storageNode := range storageNodes {
-		expectedStorageNode := fixt.ExpectedStorageNodes[index]
+		expectedStorageNode := expectedStorageNodes[index]
 		expectedStorageCID, _ := ipld.RawdataToCid(ipld.MEthStorageTrie, expectedStorageNode.Value, multihash.KECCAK_256)
 
 		test.ExpectEqual(t, strconv.Itoa(snapshotHeight), storageNode.BlockNumber)
-		test.ExpectEqual(t, fixt.Block4_Header.Hash().String(), storageNode.HeaderID)
+		test.ExpectEqual(t, fixt.Block5_Header.Hash().String(), storageNode.HeaderID)
 		test.ExpectEqual(t, expectedStorageCID.String(), storageNode.CID)
 		test.ExpectEqual(t, int(expectedStorageNode.NodeType), storageNode.NodeType)
 		test.ExpectEqual(t, expectedStorageNode.Key, common.HexToHash(storageNode.StorageKey))
