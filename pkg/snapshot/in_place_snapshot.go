@@ -17,6 +17,8 @@ package snapshot
 
 import (
 	"github.com/jmoiron/sqlx"
+
+	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
 const (
@@ -40,12 +42,12 @@ func CreateInPlaceSnapshot(config *Config, params InPlaceSnapshotParams) error {
 	if err != nil {
 		return err
 	}
+	defer func() { err = CommitOrRollback(tx, err) }()
 
-	tx.Exec(stateSnapShotPgStr, params.StartHeight, params.EndHeight)
-	tx.Exec(storageSnapShotPgStr, params.StartHeight, params.EndHeight)
-
-	err = tx.Commit()
-	if err != nil {
+	if _, err = tx.Exec(stateSnapShotPgStr, params.StartHeight, params.EndHeight); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(storageSnapShotPgStr, params.StartHeight, params.EndHeight); err != nil {
 		return err
 	}
 
