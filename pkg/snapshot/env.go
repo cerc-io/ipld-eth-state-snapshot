@@ -21,6 +21,7 @@ const (
 	SNAPSHOT_WORKERS       = "SNAPSHOT_WORKERS"
 	SNAPSHOT_RECOVERY_FILE = "SNAPSHOT_RECOVERY_FILE"
 	SNAPSHOT_MODE          = "SNAPSHOT_MODE"
+	SNAPSHOT_ACCOUNTS      = "SNAPSHOT_ACCOUNTS"
 
 	LOGRUS_LEVEL = "LOGRUS_LEVEL"
 	LOGRUS_FILE  = "LOGRUS_FILE"
@@ -58,6 +59,7 @@ const (
 	SNAPSHOT_WORKERS_TOML       = "snapshot.workers"
 	SNAPSHOT_RECOVERY_FILE_TOML = "snapshot.recoveryFile"
 	SNAPSHOT_MODE_TOML          = "snapshot.mode"
+	SNAPSHOT_ACCOUNTS_TOML      = "snapshot.accounts"
 
 	LOGRUS_LEVEL_TOML = "log.level"
 	LOGRUS_FILE_TOML  = "log.file"
@@ -95,6 +97,7 @@ const (
 	SNAPSHOT_WORKERS_CLI       = "workers"
 	SNAPSHOT_RECOVERY_FILE_CLI = "recovery-file"
 	SNAPSHOT_MODE_CLI          = "snapshot-mode"
+	SNAPSHOT_ACCOUNTS_CLI      = "snapshot-accounts"
 
 	LOGRUS_LEVEL_CLI = "log-level"
 	LOGRUS_FILE_CLI  = "log-file"
