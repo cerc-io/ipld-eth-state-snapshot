@@ -38,14 +38,6 @@ var (
 	nodeInfo       = test.DefaultNodeInfo
 	snapshotHeight = 6
 
-	allTables = []*snapt.Table{
-		&snapt.TableIPLDBlock,
-		&snapt.TableNodeInfo,
-		&snapt.TableHeader,
-		&snapt.TableStateNode,
-		&snapt.TableStorageNode,
-	}
-
 	pgQueryStateCids = `SELECT cast(state_cids.block_number AS TEXT), state_cids.cid, state_cids.state_leaf_key, state_cids.node_type, state_cids.state_path, state_cids.header_id, state_cids.mh_key
 		FROM eth.state_cids
 		WHERE eth.state_cids.block_number = $1
@@ -92,7 +84,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		compareStorageNodes(t, db, fixt.ExpectedStorageNodes)
 	})
 
-	t.Run("Snapshot for blocks with contract deployment and transaction", func(t *testing.T) {
+	t.Run("Snapshot for blocks with contract destruction", func(t *testing.T) {
 		t.Skip("Fix in-place snapshot function for removed type nodes")
 		sql.TearDownDB(t, db)
 		_ = writeData(t, db, fixt.InPlaceSnapshotBlocks[:5])
@@ -112,6 +104,22 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		t.Skip("Fix in-place snapshot function for chain with non-canonical blocks")
 		sql.TearDownDB(t, db)
 		_ = writeData(t, db, append(fixt.InPlaceSnapshotBlocks[:4], fixt.NonCanonicalChainFromBlock2...))
+
+		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
+		err = CreateInPlaceSnapshot(config, params)
+		test.NoError(t, err)
+
+		// Check inplace snapshot was created for state_cids
+		compareStateNodes(t, db, fixt.ExpectedStateNodes)
+
+		// Check inplace snapshot was created for storage_cids
+		compareStorageNodes(t, db, fixt.ExpectedStorageNodes)
+	})
+
+	t.Run("Snapshot for chain with non indexed missing blocks", func(t *testing.T) {
+		t.Skip("Fix in-place snapshot function for chain with non-indexed missing blocks")
+		sql.TearDownDB(t, db)
+		_ = writeData(t, db, fixt.ChainWithMissingBlock)
 
 		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
 		err = CreateInPlaceSnapshot(config, params)
