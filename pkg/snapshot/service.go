@@ -87,7 +87,7 @@ type SnapshotParams struct {
 func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	paths := make([][]byte, 0, len(params.WatchedAddresses))
 	for addr := range params.WatchedAddresses {
-		paths = append(paths, crypto.Keccak256(addr.Bytes()))
+		paths = append(paths, keybytesToHex(crypto.Keccak256(addr.Bytes())))
 	}
 	s.watchingAddresses = len(paths) > 0
 	// extract header from lvldb and publish to PG-IPFS

@@ -159,7 +159,8 @@ func (c *FileConfig) Init() error {
 
 func (c *ServiceConfig) Init() error {
 	viper.BindEnv(SNAPSHOT_ACCOUNTS_TOML, SNAPSHOT_ACCOUNTS)
-	allowedAccounts := viper.GetStringSlice(SNAPSHOT_ACCOUNTS)
+	var allowedAccounts []string
+	viper.UnmarshalKey(SNAPSHOT_ACCOUNTS_TOML, &allowedAccounts)
 	accountsLen := len(allowedAccounts)
 	if accountsLen != 0 {
 		c.AllowedAccounts = make(map[common.Address]struct{}, accountsLen)
