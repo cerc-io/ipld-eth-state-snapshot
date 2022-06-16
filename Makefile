@@ -1,12 +1,18 @@
+BIN = $(GOPATH)/bin
+
+## Mockgen tool
+MOCKGEN = $(BIN)/mockgen
+$(BIN)/mockgen:
+	go install github.com/golang/mock/mockgen@v1.6.0
+
 MOCKS_DIR = $(CURDIR)/mocks
-mockgen_cmd=mockgen
 
 .PHONY: mocks test
 
-mocks: mocks/snapshot/publisher.go
+mocks: $(MOCKGEN) mocks/snapshot/publisher.go
 
 mocks/snapshot/publisher.go: pkg/types/publisher.go
-	$(mockgen_cmd) -package snapshot_mock -destination $@ -source $< Publisher Tx
+	$(MOCKGEN) -package snapshot_mock -destination $@ -source $< Publisher Tx
 
 clean:
 	rm -f mocks/snapshot/publisher.go
