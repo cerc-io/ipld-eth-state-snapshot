@@ -82,6 +82,7 @@ func NewInPlaceSnapshotConfig() *Config {
 		&EthConfig{},
 		&DBConfig{},
 		&FileConfig{},
+		&ServiceConfig{},
 	}
 	ret.DB.Init()
 
