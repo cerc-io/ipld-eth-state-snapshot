@@ -36,7 +36,7 @@ import (
 var (
 	pgConfig       = test.DefaultPgConfig
 	nodeInfo       = test.DefaultNodeInfo
-	snapshotHeight = 5
+	snapshotHeight = 6
 
 	allTables = []*snapt.Table{
 		&snapt.TableIPLDBlock,
@@ -79,7 +79,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 
 	t.Run("Snapshot for blocks with contract deployment and transaction", func(t *testing.T) {
 		sql.TearDownDB(t, db)
-		_ = writeData(t, db, 4)
+		_ = writeData(t, db, fixt.InPlaceSnapshotBlocks[:4])
 
 		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
 		err = CreateInPlaceSnapshot(config, params)
@@ -95,7 +95,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	t.Run("Snapshot for blocks with contract deployment and transaction", func(t *testing.T) {
 		t.Skip("Fix in-place snapshot function for removed type nodes")
 		sql.TearDownDB(t, db)
-		_ = writeData(t, db, 5)
+		_ = writeData(t, db, fixt.InPlaceSnapshotBlocks[:5])
 
 		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
 		err = CreateInPlaceSnapshot(config, params)
@@ -107,14 +107,30 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		// Check inplace snapshot was created for storage_cids
 		compareStorageNodes(t, db, fixt.ExpectedStorageNodesAfterContractDestruction)
 	})
+
+	t.Run("Snapshot with non-canonical blocks", func(t *testing.T) {
+		t.Skip("Fix in-place snapshot function for chain with non-canonical blocks")
+		sql.TearDownDB(t, db)
+		_ = writeData(t, db, append(fixt.InPlaceSnapshotBlocks[:4], fixt.NonCanonicalChainFromBlock2...))
+
+		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
+		err = CreateInPlaceSnapshot(config, params)
+		test.NoError(t, err)
+
+		// Check inplace snapshot was created for state_cids
+		compareStateNodes(t, db, fixt.ExpectedStateNodes)
+
+		// Check inplace snapshot was created for storage_cids
+		compareStorageNodes(t, db, fixt.ExpectedStorageNodes)
+	})
 }
 
-func writeData(t *testing.T, db *postgres.DB, height int) snapt.Publisher {
+func writeData(t *testing.T, db *postgres.DB, blocks []fixt.Block) snapt.Publisher {
 	pub := pg.NewPublisher(db)
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
 
-	for _, block := range fixt.InPlaceSnapshotBlocks[:height] {
+	for _, block := range blocks {
 		headerID := block.Hash.String()
 
 		for _, stateNode := range block.StateNodes {
@@ -132,7 +148,7 @@ func writeData(t *testing.T, db *postgres.DB, height int) snapt.Publisher {
 
 	test.NoError(t, tx.Commit())
 
-	test.NoError(t, pub.PublishHeader(&fixt.Block5_Header))
+	test.NoError(t, pub.PublishHeader(&fixt.Block6_Header))
 	return pub
 }
 
@@ -151,7 +167,7 @@ func compareStateNodes(t *testing.T, db *postgres.DB, expectedStateNodes []snapt
 		expectedStateNode := expectedStateNodes[index]
 		expectedCID, _ := ipld.RawdataToCid(ipld.MEthStateTrie, expectedStateNode.Value, multihash.KECCAK_256)
 		test.ExpectEqual(t, strconv.Itoa(snapshotHeight), stateNode.BlockNumber)
-		test.ExpectEqual(t, fixt.Block5_Header.Hash().String(), stateNode.HeaderID)
+		test.ExpectEqual(t, fixt.Block6_Header.Hash().String(), stateNode.HeaderID)
 		test.ExpectEqual(t, expectedCID.String(), stateNode.CID)
 		test.ExpectEqual(t, int(expectedStateNode.NodeType), stateNode.NodeType)
 		test.ExpectEqual(t, expectedStateNode.Key, common.HexToHash(stateNode.StateKey))
@@ -173,7 +189,7 @@ func compareStorageNodes(t *testing.T, db *postgres.DB, expectedStorageNodes []f
 		expectedStorageCID, _ := ipld.RawdataToCid(ipld.MEthStorageTrie, expectedStorageNode.Value, multihash.KECCAK_256)
 
 		test.ExpectEqual(t, strconv.Itoa(snapshotHeight), storageNode.BlockNumber)
-		test.ExpectEqual(t, fixt.Block5_Header.Hash().String(), storageNode.HeaderID)
+		test.ExpectEqual(t, fixt.Block6_Header.Hash().String(), storageNode.HeaderID)
 		test.ExpectEqual(t, expectedStorageCID.String(), storageNode.CID)
 		test.ExpectEqual(t, int(expectedStorageNode.NodeType), storageNode.NodeType)
 		test.ExpectEqual(t, expectedStorageNode.Key, common.HexToHash(storageNode.StorageKey))
