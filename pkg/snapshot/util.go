@@ -51,3 +51,15 @@ func decrementPath(path []byte) bool {
 	}
 	return true
 }
+
+// https://github.com/ethereum/go-ethereum/blob/master/trie/encoding.go#L97
+func keybytesToHex(str []byte) []byte {
+	l := len(str)*2 + 1
+	var nibbles = make([]byte, l)
+	for i, b := range str {
+		nibbles[i*2] = b / 16
+		nibbles[i*2+1] = b % 16
+	}
+	nibbles[l-1] = 16
+	return nibbles
+}
