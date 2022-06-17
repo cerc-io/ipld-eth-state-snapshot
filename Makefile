@@ -6,7 +6,6 @@ mockgen_cmd=mockgen
 mocks: mocks/snapshot/publisher.go
 
 mocks/snapshot/publisher.go: pkg/types/publisher.go
-	go install github.com/golang/mock/mockgen@v1.6.0
 	$(mockgen_cmd) -package snapshot_mock -destination $@ -source $< Publisher Tx
 
 clean:
