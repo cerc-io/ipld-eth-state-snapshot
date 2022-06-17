@@ -3,18 +3,18 @@ module github.com/vulcanize/ipld-eth-state-snapshot
 go 1.18
 
 require (
-	github.com/ethereum/go-ethereum v1.10.18
+	github.com/ethereum/go-ethereum v1.10.19
 	github.com/golang/mock v1.6.0
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-ipfs-blockstore v1.1.2
 	github.com/ipfs/go-ipfs-ds-help v1.1.0
-	github.com/jackc/pgx/v4 v4.15.0
+	github.com/jmoiron/sqlx v1.2.0
 	github.com/multiformats/go-multihash v0.1.0
 	github.com/prometheus/client_golang v1.3.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
-	github.com/vulcanize/go-eth-state-node-iterator v1.1.0
+	github.com/vulcanize/go-eth-state-node-iterator v1.1.1
 )
 
 require (
@@ -55,9 +55,9 @@ require (
 	github.com/jackc/pgproto3/v2 v2.2.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.10.0 // indirect
+	github.com/jackc/pgx/v4 v4.15.0 // indirect
 	github.com/jackc/puddle v1.2.1 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
-	github.com/jmoiron/sqlx v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
@@ -114,4 +114,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.18 => github.com/vulcanize/go-ethereum v1.10.18-statediff-4.0.2-alpha
+replace github.com/ethereum/go-ethereum v1.10.19 => github.com/vulcanize/go-ethereum v1.10.19-statediff-4.0.2-alpha
