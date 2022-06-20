@@ -117,19 +117,15 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	})
 
 	t.Run("Snapshot for chain with non indexed missing blocks", func(t *testing.T) {
-		t.Skip("Fix in-place snapshot function for chain with non-indexed missing blocks")
+		t.Skip("Fix in-place snapshot function for chain with non indexed missing blocks")
 		sql.TearDownDB(t, db)
 		_ = writeData(t, db, fixt.ChainWithMissingBlock)
 
 		params := InPlaceSnapshotParams{StartHeight: uint64(0), EndHeight: uint64(snapshotHeight)}
 		err = CreateInPlaceSnapshot(config, params)
-		test.NoError(t, err)
-
-		// Check inplace snapshot was created for state_cids
-		compareStateNodes(t, db, fixt.ExpectedStateNodes)
-
-		// Check inplace snapshot was created for storage_cids
-		compareStorageNodes(t, db, fixt.ExpectedStorageNodes)
+		if err == nil {
+			t.Fatal("Should throw error for missing blocks")
+		}
 	})
 }
 
