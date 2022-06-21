@@ -489,62 +489,6 @@ var ExpectedStateNodesAfterContractDestruction = []snapt.Node{
 		Key:      common.HexToHash("0x67ab3c0dd775f448af7fb41243415ed6fb975d1530a2d828f69bea7346231ad7"),
 		Value:    []byte{248, 119, 161, 32, 103, 171, 60, 13, 215, 117, 244, 72, 175, 127, 180, 18, 67, 65, 94, 214, 251, 151, 93, 21, 48, 162, 216, 40, 246, 155, 234, 115, 70, 35, 26, 215, 184, 83, 248, 81, 5, 141, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 86, 232, 31, 23, 27, 204, 85, 166, 255, 131, 69, 230, 146, 192, 248, 110, 91, 72, 224, 27, 153, 108, 173, 192, 1, 98, 47, 181, 227, 99, 180, 33, 160, 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112},
 	},
-	{
-		NodeType: 3,
-		Path:     []byte{6},
-		Value:    []byte{},
-	},
-	{
-		NodeType: 3,
-		Path:     []byte{9},
-		Key:      common.HexToHash("0x9397e33dedda4763aea143fc6151ebcd9a93f62db7a6a556d46c585d82ad2afc"),
-		Value:    []byte{},
-	},
-	{
-		NodeType: 3,
-		Path:     []byte{10},
-		Key:      common.HexToHash("0xa44b5f4b47ded891709350af6a6e4d56602228a70279bdad4f0f64042445b4b9"),
-		Value:    []byte{},
-	},
-}
-
-// Expected storage nodes at snapshot height after destroying contracts..
-var ExpectedStorageNodesAfterContractDestruction = []StorageNodeWithState{
-	{
-		Node: snapt.Node{
-			NodeType: 3,
-			Path:     []byte{},
-			Value:    []byte{},
-		},
-		StatePath: []byte{9},
-	},
-	{
-		Node: snapt.Node{
-			NodeType: 3,
-			Path:     []byte{2},
-			Key:      common.HexToHash("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563"),
-			Value:    []byte{},
-		},
-		StatePath: []byte{9},
-	},
-	{
-		Node: snapt.Node{
-			NodeType: 3,
-			Path:     []byte{11},
-			Key:      common.HexToHash("0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6"),
-			Value:    []byte{},
-		},
-		StatePath: []byte{9},
-	},
-	{
-		Node: snapt.Node{
-			NodeType: 3,
-			Path:     []byte{},
-			Key:      common.HexToHash("0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563"),
-			Value:    []byte{},
-		},
-		StatePath: []byte{10},
-	},
 }
 
 // Block header at snapshot height.

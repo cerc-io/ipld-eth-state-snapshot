@@ -97,7 +97,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 		compareStateNodes(t, db, fixt.ExpectedStateNodesAfterContractDestruction)
 
 		// Check inplace snapshot was created for storage_cids
-		compareStorageNodes(t, db, fixt.ExpectedStorageNodesAfterContractDestruction)
+		compareStorageNodes(t, db, []fixt.StorageNodeWithState{})
 	})
 
 	t.Run("Snapshot with non-canonical blocks", func(t *testing.T) {
