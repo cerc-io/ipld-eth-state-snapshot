@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 
@@ -117,6 +118,9 @@ func TestRecovery(t *testing.T) {
 		if _, err = os.Stat(recovery); err != nil {
 			t.Fatal("cannot stat recovery file:", err)
 		}
+
+		// Wait for earlier snapshot process to complete
+		time.Sleep(5 * time.Second)
 
 		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 		err = service.CreateSnapshot(params)
