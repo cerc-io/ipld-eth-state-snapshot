@@ -25,9 +25,9 @@ Config format:
 
 [leveldb]
     # path to geth leveldb
-    path    = "/Users/user/Library/Ethereum/geth/chaindata"         # ANCIENT_DB_PATH
+    path    = "/Users/user/Library/Ethereum/geth/chaindata"         # LVL_DB_PATH
     # path to geth ancient database
-    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient" # LVL_DB_PATH
+    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient" # ANCIENT_DB_PATH
 
 [database]
     # when operating in 'postgres' output mode
