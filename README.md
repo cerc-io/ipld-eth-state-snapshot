@@ -78,6 +78,15 @@ Config format:
     ./ipld-eth-state-snapshot inPlaceStateSnapshot --config={path to toml config file}
     ```
 
+## Monitoring
+
+* Enable metrics using config parameters `prom.metrics` and `prom.http`.
+* `ipld-eth-state-snapshot` exposes following prometheus metrics at `/metrics` endpoint:
+    * `state_node_count`: Number of state nodes processed.
+    * `storage_node_count`: Number of storage nodes processed.
+    * `code_node_count`: Number of code nodes processed.
+    * DB stats if operating in `postgres` mode.
+
 ## Tests
 
 * Run unit tests:
@@ -107,25 +116,39 @@ Config format:
           - ./output_dir:/output_dir
     ```
 
-* Combine output from multiple workers:
+* Data post-processing:
 
-    ```bash
-    # public.blocks
-    cat output_dir/**/public.blocks.csv >> output_dir/public.blocks.csv
+    * Create a directory to store post-processed output:
 
-    # eth.state_cids
-    cat output_dir/**/eth.state_cids.csv > output_dir/eth.state_cids.csv
+        ```bash
+        mkdir -p output_dir/processed_output
+        ```
 
-    # eth.storage_cids
-    cat output_dir/**/eth.storage_cids.csv > output_dir/eth.storage_cids.csv
-    ```
+    * Combine output from multiple workers and copy to post-processed output directory:
 
-- De-duplicate data:
+        ```bash
+        # public.blocks
+        cat {output_dir,output_dir/*}/public.blocks.csv > output_dir/processed_output/combined-public.blocks.csv
 
-    ```bash
-    # public.blocks
-    sort -u output_dir/public.blocks.csv -o output_dir/public.blocks.csv
-    ```
+        # eth.state_cids
+        cat output_dir/*/eth.state_cids.csv > output_dir/processed_output/combined-eth.state_cids.csv
+
+        # eth.storage_cids
+        cat output_dir/*/eth.storage_cids.csv > output_dir/processed_output/combined-eth.storage_cids.csv
+
+        # public.nodes
+        cp output_dir/public.nodes.csv output_dir/processed_output/public.nodes.csv
+
+        # eth.header_cids
+        cp output_dir/eth.header_cids.csv output_dir/processed_output/eth.header_cids.csv
+        ```
+
+    * De-duplicate data:
+
+        ```bash
+        # public.blocks
+        sort -u output_dir/processed_output/combined-public.blocks.csv -o output_dir/processed_output/deduped-combined-public.blocks.csv
+        ```
 
 * Start `psql` in the DB container to run import commands:
 
@@ -137,17 +160,19 @@ Config format:
 
     ```bash
     # public.nodes
-    COPY public.nodes FROM '/output_dir/public.nodes.csv' CSV;
+    COPY public.nodes FROM '/output_dir/processed_output/public.nodes.csv' CSV;
 
     # public.blocks
-    COPY public.blocks FROM '/output_dir/public.blocks.csv' CSV;
+    COPY public.blocks FROM '/output_dir/processed_output/deduped-combined-public.blocks.csv' CSV;
 
     # eth.header_cids
-    COPY eth.header_cids FROM '/output_dir/eth.header_cids.csv' CSV;
+    COPY eth.header_cids FROM '/output_dir/processed_output/eth.header_cids.csv' CSV;
 
     # eth.state_cids
-    COPY eth.state_cids FROM '/output_dir/eth.state_cids.csv' CSV FORCE NOT NULL state_leaf_key;
+    COPY eth.state_cids FROM '/output_dir/processed_output/combined-eth.state_cids.csv' CSV FORCE NOT NULL state_leaf_key;
 
     # eth.storage_cids
-    COPY eth.storage_cids FROM '/output_dir/eth.storage_cids.csv' CSV FORCE NOT NULL storage_leaf_key;
+    COPY eth.storage_cids FROM '/output_dir/processed_output/combined-eth.storage_cids.csv' CSV FORCE NOT NULL storage_leaf_key;
     ```
+
+* NOTE: `COPY` command on CSVs inserts empty strings as `NULL` in the DB. Passing `FORCE_NOT_NULL <COLUMN_NAME>` forces it to insert empty strings instead. Reference: https://www.postgresql.org/docs/14/sql-copy.html
