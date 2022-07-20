@@ -231,31 +231,35 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 	}()
 
 	// if path is nil
-	// 	(occurs before reaching state trie root)
-	// 	(when the iterator is created using tree.NodeIterator(nil))
-	// move on to next node (root)
+	// 	(occurs before reaching state trie root OR when there are no nodes in the subtrie iterator's subtrie)
+	// 	move on to next node
 	if it.Path() == nil {
 		it.Next(true)
+		// if iterator is at an empty path, it's a root node
 		// process root node
-		// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-		if err := s.createNodeSnapshot(tx, it.Path(), it, headerID, height, seekingPaths); err != nil {
-			return err
+		if bytes.Equal(it.Path(), []byte{}) {
+			// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
+			if err := s.createNodeSnapshot(tx, it.Path(), it, headerID, height, seekingPaths); err != nil {
+				return err
+			}
+		} else {
+			return it.Error()
 		}
 	}
 
 	// iterate all the nodes at this level
-	// if iterator is at an empty path (in case of root node or just before subtrie root in case of some concurrent iterators),
-	// descend in the first loop iteration to reach first child node
-	var descend bool
+	// if iterator is at an empty path
+	// (in case of root node or just before reaching next subtrie node in case of some concurrent iterators),
+	// move to the next node, descend to reach first child node
+	shouldConsiderNode := true
 	if bytes.Equal(it.Path(), []byte{}) {
-		descend = true
+		shouldConsiderNode = it.Next(true)
 	}
-	for it.Next(descend) {
-		// to avoid descending further
-		descend = false
-
+	for shouldConsiderNode {
 		// ignore node if it is not along paths of interest
 		if s.watchingAddresses && !validPath(it.Path(), seekingPaths) {
+			// move to the next node, do not descend to reach sibling node
+			shouldConsiderNode = it.Next(false)
 			continue
 		}
 
@@ -269,6 +273,9 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 		if err := s.createSubTrieSnapshot(tx, it.Path(), it.Hash(), headerID, height, seekingPaths); err != nil {
 			return err
 		}
+
+		// move to the next node, do not descend to reach sibling node
+		shouldConsiderNode = it.Next(false)
 	}
 
 	return it.Error()
@@ -360,7 +367,7 @@ func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, h
 			}
 		}
 
-		if tx, err = s.storageSnapshot(account.Root, headerID, height, res.node.Path, tx); err != nil {
+		if _, err = s.storageSnapshot(account.Root, headerID, height, res.node.Path, tx); err != nil {
 			return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %w", account, err)
 		}
 	case Extension, Branch:
