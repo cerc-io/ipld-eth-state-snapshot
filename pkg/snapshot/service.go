@@ -138,9 +138,10 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		} else {
 			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
 		}
-		for i, it := range iters {
-			iters[i] = s.tracker.tracked(it)
-		}
+		// TODO Fix job recovery for account selective snapshot
+		// for i, it := range iters {
+		// 	iters[i] = s.tracker.tracked(it)
+		// }
 	}
 
 	defer func() {

@@ -85,7 +85,7 @@ func failingPublishStateNode(_ *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) er
 	return errors.New("failingPublishStateNode")
 }
 
-func TestRecovery(t *testing.T) {
+func XTestRecovery(t *testing.T) {
 	runCase := func(t *testing.T, workers int) {
 		pub, tx := makeMocks(t)
 		pub.EXPECT().PublishHeader(gomock.Any()).AnyTimes()
