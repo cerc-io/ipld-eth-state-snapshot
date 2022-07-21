@@ -85,7 +85,7 @@ func failingPublishStateNode(_ *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) er
 	return errors.New("failingPublishStateNode")
 }
 
-func XTestRecovery(t *testing.T) {
+func TestRecovery(t *testing.T) {
 	runCase := func(t *testing.T, workers int) {
 		pub, tx := makeMocks(t)
 		pub.EXPECT().PublishHeader(gomock.Any()).AnyTimes()
@@ -120,7 +120,7 @@ func XTestRecovery(t *testing.T) {
 		}
 
 		// Wait for earlier snapshot process to complete
-		time.Sleep(5 * time.Second)
+		time.Sleep(2 * time.Second)
 
 		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 		err = service.CreateSnapshot(params)
@@ -138,7 +138,7 @@ func XTestRecovery(t *testing.T) {
 		}
 	}
 
-	testCases := []int{1, 4, 32}
+	testCases := []int{1, 4, 8, 16, 32}
 	for _, tc := range testCases {
 		t.Run("case", func(t *testing.T) { runCase(t, tc) })
 	}

@@ -117,7 +117,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
-	iters, err = s.tracker.restore(tree)
+	iters, err = s.tracker.restore(tree, s.stateDB)
 	if err != nil {
 		log.Errorf("restore error: %s", err.Error())
 		return err
@@ -125,12 +125,6 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 	if iters != nil {
 		log.Debugf("restored iterators; count: %d", len(iters))
-		if params.Workers < uint(len(iters)) {
-			return fmt.Errorf(
-				"number of recovered workers (%d) is greater than number configured (%d)",
-				len(iters), params.Workers,
-			)
-		}
 	} else { // nothing to restore
 		log.Debugf("no iterators to restore")
 		if params.Workers > 1 {
@@ -138,10 +132,9 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		} else {
 			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
 		}
-		// TODO Fix job recovery for account selective snapshot
-		// for i, it := range iters {
-		// 	iters[i] = s.tracker.tracked(it)
-		// }
+		for i, it := range iters {
+			iters[i] = s.tracker.tracked(it, "")
+		}
 	}
 
 	defer func() {
@@ -289,6 +282,8 @@ func (s *Service) createSubTrieSnapshot(tx Tx, prefixPath []byte, hash common.Ha
 		return err
 	}
 	subTrieIt := subTrie.NodeIterator(nil)
+	subTrieIt = s.tracker.tracked(subTrieIt, hash.String())
+
 	// move on to the subtrie root node
 	// subtrie root node assumed to be already indexed at a higher level
 	subTrieIt.Next(true)
