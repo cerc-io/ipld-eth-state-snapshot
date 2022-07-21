@@ -150,10 +150,13 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		}
 	}()
 
-	if len(iters) > 0 {
+	switch {
+	case len(iters) > 1:
 		return s.createSnapshotAsync(iters, headerID, new(big.Int).SetUint64(params.Height), paths)
-	} else {
+	case len(iters) == 1:
 		return s.createSnapshot(iters[0], headerID, new(big.Int).SetUint64(params.Height), paths)
+	default:
+		return nil
 	}
 }
 
