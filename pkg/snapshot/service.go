@@ -225,7 +225,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 	}()
 
 	// if path is nil
-	// 	(occurs before reaching state trie root OR when there are no nodes in the subtrie iterator's subtrie)
+	// 	(occurs before reaching state trie root OR subtrie root in case of some concurrent iterators)
 	// 	move on to next node
 	if it.Path() == nil {
 		it.Next(true)
@@ -236,8 +236,6 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 			if err := s.createNodeSnapshot(tx, it.Path(), it, headerID, height, seekingPaths); err != nil {
 				return err
 			}
-		} else {
-			return it.Error()
 		}
 	}
 
