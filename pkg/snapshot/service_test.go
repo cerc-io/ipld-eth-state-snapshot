@@ -2,9 +2,13 @@ package snapshot
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -77,7 +81,7 @@ func TestCreateSnapshot(t *testing.T) {
 		}
 	}
 
-	testCases := []int{1, 4, 16, 32}
+	testCases := []int{1, 4, 8, 16, 32}
 	for _, tc := range testCases {
 		t.Run("case", func(t *testing.T) { runCase(t, tc) })
 	}
@@ -211,20 +215,31 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 	}
 }
 
-func failingPublishStateNode(_ *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
-	return errors.New("failingPublishStateNode")
-}
-
 func TestRecovery(t *testing.T) {
-	runCase := func(t *testing.T, workers int) {
+	runCase := func(t *testing.T, workers int, interruptAt int32) {
+		stateNodePaths := sync.Map{}
+		for _, path := range fixt.Block1_StateNodePaths {
+			stateNodePaths.Store(string(path), struct{}{})
+		}
+		var indexedStateNodesCount int32
+
 		pub, tx := makeMocks(t)
-		pub.EXPECT().PublishHeader(gomock.Any()).AnyTimes()
-		pub.EXPECT().BeginTx().Return(tx, nil).AnyTimes()
+		pub.EXPECT().PublishHeader(gomock.Eq(&fixt.Block1_Header))
+		pub.EXPECT().BeginTx().Return(tx, nil).Times(workers)
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
+		tx.EXPECT().Commit().Times(workers)
 		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Times(workers).
-			DoAndReturn(failingPublishStateNode)
-		tx.EXPECT().Commit().AnyTimes()
+			DoAndReturn(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
+				// Start throwing an error after a certain number of state nodes have been indexed
+				if indexedStateNodesCount >= interruptAt {
+					return errors.New("failingPublishStateNode")
+				} else {
+					stateNodePaths.Delete(string(node.Path))
+					atomic.AddInt32(&indexedStateNodesCount, 1)
+				}
+				return nil
+			}).
+			MaxTimes(int(interruptAt) + workers)
 
 		chainDataPath, ancientDataPath := fixt.GetChainDataPath("chaindata")
 		config := testConfig(chainDataPath, ancientDataPath)
@@ -250,15 +265,30 @@ func TestRecovery(t *testing.T) {
 			t.Fatal("cannot stat recovery file:", err)
 		}
 
-		// Wait for earlier snapshot process to complete
-		time.Sleep(2 * time.Second)
+		// Create new mocks for recovery
+		recoveryPub, tx := makeMocks(t)
+		recoveryPub.EXPECT().PublishHeader(gomock.Eq(&fixt.Block1_Header))
+		recoveryPub.EXPECT().BeginTx().Return(tx, nil).AnyTimes()
+		recoveryPub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
+		tx.EXPECT().Commit().AnyTimes()
+		recoveryPub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
+				stateNodePaths.Delete(string(node.Path))
+				return nil
+			}).
+			AnyTimes()
 
-		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-		err = service.CreateSnapshot(params)
+		// Create a new snapshot service for recovery
+		recoveryService, err := NewSnapshotService(edb, recoveryPub, recovery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = recoveryService.CreateSnapshot(params)
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		// Check if recovery file has been deleted
 		_, err = os.Stat(recovery)
 		if err == nil {
 			t.Fatal("recovery file still present")
@@ -267,10 +297,25 @@ func TestRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+
+		// Check if all state nodes are indexed after recovery
+		stateNodePaths.Range(func(key, value any) bool {
+			t.Fatal("state node not indexed for path", []byte(key.(string)))
+			return false
+		})
 	}
 
 	testCases := []int{1, 4, 8, 16, 32}
+	numInterrupts := 3
+	interrupts := make([]int32, numInterrupts)
+	for i := 0; i < numInterrupts; i++ {
+		rand.Seed(time.Now().UnixNano())
+		interrupts[i] = 1 + rand.Int31n(int32(len(fixt.Block1_StateNodePaths)))
+	}
+
 	for _, tc := range testCases {
-		t.Run("case", func(t *testing.T) { runCase(t, tc) })
+		for _, interrupt := range interrupts {
+			t.Run(fmt.Sprint("case", tc, interrupt), func(t *testing.T) { runCase(t, tc, interrupt) })
+		}
 	}
 }
