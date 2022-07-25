@@ -87,6 +87,16 @@ func TestCreateSnapshot(t *testing.T) {
 	}
 }
 
+type indexedNode struct {
+	value     snapt.Node
+	isIndexed bool
+}
+
+type storageNodeKey struct {
+	statePath   string
+	storagePath string
+}
+
 func TestAccountSelectiveSnapshot(t *testing.T) {
 	snapShotHeight := uint64(32)
 	watchedAddresses := make(map[common.Address]struct{}, 2)
@@ -102,31 +112,42 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 	expectedStorageNodeIndexes12 := []int{12, 14, 16}
 
 	runCase := func(t *testing.T, workers int) {
-		expectedStateNodePaths := make(map[string]bool, 4)
-		expectedStateNodes := make(map[string]snapt.Node, 4)
+		expectedStateNodes := sync.Map{}
+
 		for _, expectedStateNodeIndex := range expectedStateNodeIndexes {
 			path := fixt.Chain2_Block32_StateNodes[expectedStateNodeIndex].Path
-			expectedStateNodePaths[string(path)] = false
-			expectedStateNodes[string(path)] = fixt.Chain2_Block32_StateNodes[expectedStateNodeIndex]
+			expectedStateNodes.Store(string(path), indexedNode{
+				value:     fixt.Chain2_Block32_StateNodes[expectedStateNodeIndex],
+				isIndexed: false,
+			})
 		}
 
-		expectedStorageNodePaths := make(map[string]map[string]bool, 2)
-		expectedStorageNodes := make(map[string]map[string]snapt.Node, 2)
+		expectedStorageNodes := sync.Map{}
 
-		expectedStorageNodePaths[string(statePath33)] = make(map[string]bool, 7)
-		expectedStorageNodes[string(statePath33)] = make(map[string]snapt.Node, 7)
 		for _, expectedStorageNodeIndex := range expectedStorageNodeIndexes33 {
 			path := fixt.Chain2_Block32_StorageNodes[expectedStorageNodeIndex].Path
-			expectedStorageNodePaths[string(statePath33)][string(path)] = false
-			expectedStorageNodes[string(statePath33)][string(path)] = fixt.Chain2_Block32_StorageNodes[expectedStorageNodeIndex].Node
+			key := storageNodeKey{
+				statePath:   string(statePath33),
+				storagePath: string(path),
+			}
+			value := indexedNode{
+				value:     fixt.Chain2_Block32_StorageNodes[expectedStorageNodeIndex].Node,
+				isIndexed: false,
+			}
+			expectedStorageNodes.Store(key, value)
 		}
 
-		expectedStorageNodePaths[string(statePath12)] = make(map[string]bool, 3)
-		expectedStorageNodes[string(statePath12)] = make(map[string]snapt.Node, 3)
 		for _, expectedStorageNodeIndex := range expectedStorageNodeIndexes12 {
 			path := fixt.Chain2_Block32_StorageNodes[expectedStorageNodeIndex].Path
-			expectedStorageNodePaths[string(statePath12)][string(path)] = false
-			expectedStorageNodes[string(statePath12)][string(path)] = fixt.Chain2_Block32_StorageNodes[expectedStorageNodeIndex].Node
+			key := storageNodeKey{
+				statePath:   string(statePath12),
+				storagePath: string(path),
+			}
+			value := indexedNode{
+				value:     fixt.Chain2_Block32_StorageNodes[expectedStorageNodeIndex].Node,
+				isIndexed: false,
+			}
+			expectedStorageNodes.Store(key, value)
 		}
 
 		pub, tx := makeMocks(t)
@@ -145,11 +166,17 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 			gomock.Eq(fixt.Chain2_Block32_Header.Number),
 			gomock.Eq(tx)).
 			Do(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
+				key := string(node.Path)
 				// Check published nodes
-				if expectedVal, ok := expectedStateNodes[string(node.Path)]; ok {
+				if expectedStateNode, ok := expectedStateNodes.Load(key); ok {
+					expectedVal := expectedStateNode.(indexedNode).value
 					test.ExpectEqual(t, expectedVal, *node)
-					// Mark expected node as found
-					expectedStateNodePaths[string(node.Path)] = true
+
+					// Mark expected node as indexed
+					expectedStateNodes.Store(key, indexedNode{
+						value:     expectedVal,
+						isIndexed: true,
+					})
 				} else {
 					t.Fatal("got unexpected node for path", node.Path)
 				}
@@ -163,11 +190,20 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 			gomock.Any(),
 			gomock.Eq(tx)).
 			Do(func(node *snapt.Node, _ string, _ *big.Int, statePath []byte, _ snapt.Tx) error {
+				key := storageNodeKey{
+					statePath:   string(statePath),
+					storagePath: string(node.Path),
+				}
 				// Check published nodes
-				if expectedVal, ok := expectedStorageNodes[string(statePath)][string(node.Path)]; ok {
+				if expectedStorageNode, ok := expectedStorageNodes.Load(key); ok {
+					expectedVal := expectedStorageNode.(indexedNode).value
 					test.ExpectEqual(t, expectedVal, *node)
-					// Mark expected node as found
-					expectedStorageNodePaths[string(statePath)][string(node.Path)] = true
+
+					// Mark expected node as indexed
+					expectedStorageNodes.Store(key, indexedNode{
+						value:     expectedVal,
+						isIndexed: true,
+					})
 				} else {
 					t.Fatal("got unexpected node for state path", statePath, "storage path", node.Path)
 				}
@@ -195,18 +231,20 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		for path, found := range expectedStateNodePaths {
-			if !found {
-				t.Fatal("state node not indexed for path", []byte(path))
+		expectedStateNodes.Range(func(key, value any) bool {
+			if !value.(indexedNode).isIndexed {
+				t.Fatal("state node not indexed for path", []byte(key.(string)))
+				return false
 			}
-		}
-		for statePath, expectedStateStorageNodePaths := range expectedStorageNodePaths {
-			for path, found := range expectedStateStorageNodePaths {
-				if !found {
-					t.Fatal("storage node not indexed for state path", statePath, "storage path", []byte(path))
-				}
+			return true
+		})
+		expectedStorageNodes.Range(func(key, value any) bool {
+			if !value.(indexedNode).isIndexed {
+				t.Fatal("storage node not indexed for state path", []byte(key.(storageNodeKey).statePath), "storage path", []byte(key.(storageNodeKey).storagePath))
+				return false
 			}
-		}
+			return true
+		})
 	}
 
 	testCases := []int{1, 4, 8, 16, 32}
