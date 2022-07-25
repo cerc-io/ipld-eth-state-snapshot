@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -30,8 +29,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
 	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
@@ -220,7 +219,7 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 	defer func() {
 		err = CommitOrRollback(tx, err)
 		if err != nil {
-			logrus.Errorf("CommitOrRollback failed: %s", err)
+			log.Errorf("CommitOrRollback failed: %s", err)
 		}
 	}()
 
@@ -377,31 +376,16 @@ func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, h
 
 // Full-trie concurrent snapshot
 func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
-	errors := make(chan error)
-	var wg sync.WaitGroup
+	g := new(errgroup.Group)
 	for _, it := range iters {
-		wg.Add(1)
-		go func(it trie.NodeIterator) {
-			defer wg.Done()
-			if err := s.createSnapshot(it, headerID, height, seekingPaths); err != nil {
-				errors <- err
-			}
+		func(it trie.NodeIterator) {
+			g.Go(func() error {
+				return s.createSnapshot(it, headerID, height, seekingPaths)
+			})
 		}(it)
 	}
 
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		done <- struct{}{}
-	}()
-
-	var err error
-	select {
-	case err = <-errors:
-	case <-done:
-		close(errors)
-	}
-	return err
+	return g.Wait()
 }
 
 func (s *Service) storageSnapshot(sr common.Hash, headerID string, height *big.Int, statePath []byte, tx Tx) (Tx, error) {
