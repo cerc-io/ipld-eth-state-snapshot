@@ -19,7 +19,7 @@ type trackedIter struct {
 	trie.NodeIterator
 	tracker *iteratorTracker
 
-	seekedPath []byte // deepest path seeking from the tracked iterator
+	seekedPath []byte // deepest path being seeked from the tracked iterator
 }
 
 func (it *trackedIter) Next(descend bool) bool {
@@ -69,14 +69,14 @@ func (tr *iteratorTracker) captureSignal() {
 }
 
 // Wraps an iterator in a trackedIter. This should not be called once halts are possible.
-func (tr *iteratorTracker) tracked(it trie.NodeIterator, seekPath []byte) (ret *trackedIter) {
-	// Create the seekpath of max capacity (65) and populate with provided path
-	iterSeekPath := make([]byte, 0, 65)
-	if seekPath != nil {
-		iterSeekPath = append(iterSeekPath, seekPath...)
+func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (ret *trackedIter) {
+	// create seeked path of max capacity (65) and populate with provided path
+	iterSeekedPath := make([]byte, 0, 65)
+	if recoveredPath != nil {
+		iterSeekedPath = append(iterSeekedPath, recoveredPath...)
 	}
 
-	ret = &trackedIter{it, tr, iterSeekPath}
+	ret = &trackedIter{it, tr, iterSeekedPath}
 	tr.started.Store(ret, struct{}{})
 	return
 }

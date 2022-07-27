@@ -289,7 +289,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 				}
 
 				// skip indexing node if it comes before recovered path
-				if bytes.Compare(nodePath, recoveredPath) < 0 {
+				if bytes.Compare(nodePath, recoveredPath) >= 0 {
 					// if the node is along paths of interest
 					// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
 					if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height); err != nil {
@@ -320,7 +320,7 @@ func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recovered
 	// skip to the node from recovered path at this level
 	var startPath []byte
 	if bytes.Compare(recoveredPath, prefixPath) > 0 && len(recoveredPath) > len(prefixPath) {
-		startPath = append(startPath, recoveredPath[len(prefixPath):len(prefixPath)+1]...)
+		startPath = append(startPath, recoveredPath[len(prefixPath)])
 		// Force the lower bound path to an even length
 		if len(startPath)&0b1 == 1 {
 			startPath = append(startPath, 0)
