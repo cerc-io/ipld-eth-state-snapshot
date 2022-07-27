@@ -8,7 +8,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/trie"
 	log "github.com/sirupsen/logrus"
@@ -19,10 +18,17 @@ import (
 type trackedIter struct {
 	trie.NodeIterator
 	tracker *iteratorTracker
+
+	seekedPath []byte // deepest path seeking from the tracked iterator
 }
 
 func (it *trackedIter) Next(descend bool) bool {
 	ret := it.NodeIterator.Next(descend)
+
+	// update seeked path
+	it.seekedPath = it.seekedPath[:len(it.Path())]
+	copy(it.seekedPath, it.Path())
+
 	if !ret {
 		if it.tracker.running {
 			it.tracker.stopped.Store(it, struct{}{})
@@ -41,7 +47,7 @@ type iteratorTracker struct {
 	running bool
 }
 
-func newTracker(file string, buf int) iteratorTracker {
+func newTracker(file string) iteratorTracker {
 	return iteratorTracker{
 		recoveryFile: file,
 		started:      sync.Map{},
@@ -63,9 +69,15 @@ func (tr *iteratorTracker) captureSignal() {
 }
 
 // Wraps an iterator in a trackedIter. This should not be called once halts are possible.
-func (tr *iteratorTracker) tracked(it trie.NodeIterator, root string) (ret *trackedIter) {
-	ret = &trackedIter{it, tr}
-	tr.started.Store(ret, root)
+func (tr *iteratorTracker) tracked(it trie.NodeIterator, seekPath []byte) (ret *trackedIter) {
+	// Create the seekpath of max capacity (65) and populate with provided path
+	iterSeekPath := make([]byte, 0, 65)
+	if seekPath != nil {
+		iterSeekPath = append(iterSeekPath, seekPath...)
+	}
+
+	ret = &trackedIter{it, tr, iterSeekPath}
+	tr.started.Store(ret, struct{}{})
 	return
 }
 
@@ -85,7 +97,7 @@ func (tr *iteratorTracker) dump() error {
 		rows = append(rows, []string{
 			fmt.Sprintf("%x", it.Path()),
 			fmt.Sprintf("%x", endPath),
-			value.(string),
+			fmt.Sprintf("%x", it.seekedPath),
 		})
 
 		return true
@@ -135,7 +147,7 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 		// pick up where each interval left off
 		var startPath []byte
 		var endPath []byte
-		var rootHash string
+		var recoveredPath []byte
 
 		if len(row[0]) != 0 {
 			if _, err = fmt.Sscanf(row[0], "%x", &startPath); err != nil {
@@ -148,7 +160,7 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 			}
 		}
 		if len(row[2]) != 0 {
-			if _, err = fmt.Sscanf(row[2], "%s", &rootHash); err != nil {
+			if _, err = fmt.Sscanf(row[2], "%x", &recoveredPath); err != nil {
 				return nil, err
 			}
 		}
@@ -159,15 +171,8 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 			startPath = append(startPath, 0)
 		}
 
-		// Open a subtrie with the required hash if trie not passed
-		if tree == nil {
-			tree, err = stateDB.OpenTrie(common.HexToHash(rootHash))
-			if err != nil {
-				return nil, err
-			}
-		}
 		it := iter.NewPrefixBoundIterator(tree.NodeIterator(iter.HexToKeyBytes(startPath)), endPath)
-		ret = append(ret, tr.tracked(it, rootHash))
+		ret = append(ret, tr.tracked(it, recoveredPath))
 	}
 	return ret, nil
 }
@@ -175,7 +180,7 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 func (tr *iteratorTracker) haltAndDump() error {
 	tr.running = false
 
-	// drain any pending events
+	// drain any pending iterators
 	tr.stopped.Range(func(key, value any) bool {
 		it := key.(*trackedIter)
 		tr.started.Delete(it)

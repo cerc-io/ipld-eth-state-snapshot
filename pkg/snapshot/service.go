@@ -17,6 +17,7 @@ package snapshot
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -111,7 +112,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}
 
 	headerID := header.Hash().String()
-	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
+	s.tracker = newTracker(s.recoveryFile)
 	s.tracker.captureSignal()
 
 	var iters []trie.NodeIterator
@@ -132,7 +133,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
 		}
 		for i, it := range iters {
-			iters[i] = s.tracker.tracked(it, "")
+			iters[i] = s.tracker.tracked(it, nil)
 		}
 	}
 
@@ -147,7 +148,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	case len(iters) > 1:
 		return s.createSnapshotAsync(iters, headerID, new(big.Int).SetUint64(params.Height), paths)
 	case len(iters) == 1:
-		return s.createSnapshot(iters[0], headerID, new(big.Int).SetUint64(params.Height), paths)
+		return s.createSnapshot(context.Background(), iters[0], headerID, new(big.Int).SetUint64(params.Height), paths)
 	default:
 		return nil
 	}
@@ -211,7 +212,7 @@ func validPath(currentPath []byte, seekingPaths [][]byte) bool {
 	return false
 }
 
-func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
+func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
 	tx, err := s.ipfsPublisher.BeginTx()
 	if err != nil {
 		return err
@@ -223,97 +224,119 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 		}
 	}()
 
+	// path to be seeked (from recovery dump)
+	var recoveredPath []byte
+	// deepest path seeked from the concurrent iterator
+	var seekedPath *[]byte
+
+	if iter, ok := it.(*trackedIter); ok {
+		seekedPath = &iter.seekedPath
+		recoveredPath = append(recoveredPath, *seekedPath...)
+	} else {
+		return errors.New("untracked iterator")
+	}
+
+	if err := s.createSubTrieSnapshot(ctx, tx, nil, it, recoveredPath, seekedPath, headerID, height, seekingPaths); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath []byte, subTrieIt trie.NodeIterator, recoveredPath []byte, seekedPath *[]byte, headerID string, height *big.Int, seekingPaths [][]byte) error {
 	// if path is nil
 	// 	(occurs before reaching state trie root OR subtrie root in case of some concurrent iterators)
 	// 	move on to next node
-	if it.Path() == nil {
-		it.Next(true)
-		// if iterator is at an empty path, it's a root node
+	if subTrieIt.Path() == nil {
+		subTrieIt.Next(true)
+		// if iterator is at an empty path and prefixPath is nil, it's a root node
 		// process root node
-		if bytes.Equal(it.Path(), []byte{}) {
+		if bytes.Equal(subTrieIt.Path(), []byte{}) && prefixPath == nil {
 			// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-			if err := s.createNodeSnapshot(tx, it.Path(), it, headerID, height, seekingPaths); err != nil {
+			if err := s.createNodeSnapshot(tx, subTrieIt.Path(), subTrieIt, headerID, height); err != nil {
 				return err
 			}
 		}
 	}
 
+	shouldConsiderNode := true
 	// iterate all the nodes at this level
 	// if iterator is at an empty path
 	// (in case of root node or just before reaching next subtrie node in case of some concurrent iterators),
 	// move to the next node, descend to reach first child node
-	shouldConsiderNode := true
-	if bytes.Equal(it.Path(), []byte{}) {
-		shouldConsiderNode = it.Next(true)
-	}
-	for shouldConsiderNode {
-		// ignore node if it is not along paths of interest
-		if s.watchingAddresses && !validPath(it.Path(), seekingPaths) {
-			// move to the next node, do not descend to reach sibling node
-			shouldConsiderNode = it.Next(false)
-			continue
-		}
-
-		// if the node is along paths of interest
-		// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-		if err := s.createNodeSnapshot(tx, it.Path(), it, headerID, height, seekingPaths); err != nil {
-			return err
-		}
-
-		// traverse and process the next level of this subTrie
-		if err := s.createSubTrieSnapshot(tx, it.Path(), it.Hash(), headerID, height, seekingPaths); err != nil {
-			return err
-		}
-
-		// move to the next node, do not descend to reach sibling node
-		shouldConsiderNode = it.Next(false)
+	if bytes.Equal(subTrieIt.Path(), []byte{}) {
+		shouldConsiderNode = subTrieIt.Next(true)
 	}
 
-	return it.Error()
+	for {
+		select {
+		case <-ctx.Done():
+			return subTrieIt.Error()
+		default:
+			if shouldConsiderNode {
+				// create the full node path as it.Path() doesn't include the path before subtrie root
+				nodePath := append(prefixPath, subTrieIt.Path()...)
+
+				// update the deepest seeked path
+				*seekedPath = (*seekedPath)[:len(nodePath)]
+				copy(*seekedPath, nodePath)
+
+				// ignore node if it is not along paths of interest
+				if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
+					// move to the next node, do not descend to reach sibling node
+					shouldConsiderNode = subTrieIt.Next(false)
+					continue
+				}
+
+				// skip indexing node if it comes before recovered path
+				if bytes.Compare(nodePath, recoveredPath) < 0 {
+					// if the node is along paths of interest
+					// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
+					if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height); err != nil {
+						return err
+					}
+				}
+
+				// traverse and process the next level of this subTrie
+				nextSubTrieIt, err := s.createSubTrieIt(nodePath, subTrieIt.Hash(), recoveredPath)
+				if err != nil {
+					return err
+				}
+				if err := s.createSubTrieSnapshot(ctx, tx, nodePath, nextSubTrieIt, recoveredPath, seekedPath, headerID, height, seekingPaths); err != nil {
+					return err
+				}
+
+				// move to the next node, do not descend to reach sibling node
+				shouldConsiderNode = subTrieIt.Next(false)
+			} else {
+				return subTrieIt.Error()
+			}
+		}
+	}
 }
 
-func (s *Service) createSubTrieSnapshot(tx Tx, prefixPath []byte, hash common.Hash, headerID string, height *big.Int, seekingPaths [][]byte) error {
-	// create subTrie iterator for this node
+func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recoveredPath []byte) (trie.NodeIterator, error) {
+	// if node path is behind recovered path and recovered path is greater in length than parent path
+	// skip to the node from recovered path at this level
+	var startPath []byte
+	if bytes.Compare(recoveredPath, prefixPath) > 0 && len(recoveredPath) > len(prefixPath) {
+		startPath = append(startPath, recoveredPath[len(prefixPath):len(prefixPath)+1]...)
+		// Force the lower bound path to an even length
+		if len(startPath)&0b1 == 1 {
+			startPath = append(startPath, 0)
+		}
+	}
+
+	// create subTrie iterator with the given hash
 	subTrie, err := s.stateDB.OpenTrie(hash)
 	if err != nil {
-		return err
-	}
-	subTrieIt := subTrie.NodeIterator(nil)
-	subTrieIt = s.tracker.tracked(subTrieIt, hash.String())
-
-	// move on to the subtrie root node
-	// subtrie root node assumed to be already indexed at a higher level
-	subTrieIt.Next(true)
-
-	// descend in the first loop iteration to reach first child node
-	descend := true
-	for subTrieIt.Next(descend) {
-		// to avoid descending further
-		descend = false
-
-		// create the full node path as it.Path() doesn't include the path before subtrie root
-		nodePath := append(prefixPath, subTrieIt.Path()...)
-		// ignore node if it is not along paths of interest
-		if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
-			continue
-		}
-
-		// if the node is along paths of interest
-		// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-		if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height, seekingPaths); err != nil {
-			return err
-		}
-
-		// traverse and process the next level of this subTrie
-		if err := s.createSubTrieSnapshot(tx, nodePath, subTrieIt.Hash(), headerID, height, seekingPaths); err != nil {
-			return err
-		}
+		return nil, err
 	}
 
-	return subTrieIt.Error()
+	return subTrie.NodeIterator(iter.HexToKeyBytes(startPath)), nil
 }
 
-func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
+func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, headerID string, height *big.Int) error {
 	res, err := resolveNode(path, it, s.stateDB.TrieDB())
 	if err != nil {
 		return err
@@ -376,11 +399,11 @@ func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, h
 
 // Full-trie concurrent snapshot
 func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
-	g := new(errgroup.Group)
+	g, ctx := errgroup.WithContext(context.Background())
 	for _, it := range iters {
 		func(it trie.NodeIterator) {
 			g.Go(func() error {
-				return s.createSnapshot(it, headerID, height, seekingPaths)
+				return s.createSnapshot(ctx, it, headerID, height, seekingPaths)
 			})
 		}(it)
 	}

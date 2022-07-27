@@ -263,9 +263,9 @@ func TestRecovery(t *testing.T) {
 
 		pub, tx := makeMocks(t)
 		pub.EXPECT().PublishHeader(gomock.Eq(&fixt.Block1_Header))
-		pub.EXPECT().BeginTx().Return(tx, nil).Times(workers)
+		pub.EXPECT().BeginTx().Return(tx, nil).MaxTimes(workers)
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
-		tx.EXPECT().Commit().Times(workers)
+		tx.EXPECT().Commit().MaxTimes(workers)
 		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
 				// Start throwing an error after a certain number of state nodes have been indexed
@@ -343,7 +343,7 @@ func TestRecovery(t *testing.T) {
 		})
 	}
 
-	testCases := []int{1, 4, 8, 16, 32}
+	testCases := []int{1, 2, 4, 8, 16, 32}
 	numInterrupts := 3
 	interrupts := make([]int32, numInterrupts)
 	for i := 0; i < numInterrupts; i++ {
