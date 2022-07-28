@@ -24,10 +24,6 @@ type trackedIter struct {
 func (it *trackedIter) Next(descend bool) bool {
 	ret := it.NodeIterator.Next(descend)
 
-	// update seeked path
-	it.seekedPath = it.seekedPath[:len(it.Path())]
-	copy(it.seekedPath, it.Path())
-
 	if !ret {
 		if it.tracker.running {
 			it.tracker.stopChan <- it
@@ -152,7 +148,6 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 
 		// Force the lower bound path to an even length
 		if len(startPath)&0b1 == 1 {
-			decrementPath(startPath) // decrement first to avoid skipped nodes
 			startPath = append(startPath, 0)
 		}
 

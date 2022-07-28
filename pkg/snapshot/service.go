@@ -288,25 +288,24 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 		default:
 			// create the full node path as it.Path() doesn't include the path before subtrie root
 			nodePath := append(prefixPath, subTrieIt.Path()...)
-			*seekedPath = (*seekedPath)[:len(nodePath)]
-			copy(*seekedPath, nodePath)
 
 			if shouldConsiderNode {
 				// ignore node if it is not along paths of interest
 				if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
+					// update seeked path since this node is gettin ignored
+					updateSeekedPath(seekedPath, nodePath)
 					// move to the next node, do not descend to reach sibling node
 					shouldConsiderNode = subTrieIt.Next(false)
 					continue
 				}
 
-				// skip indexing node if it comes before recovered path
-				if bytes.Compare(nodePath, recoveredPath) >= 0 {
-					// if the node is along paths of interest
-					// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-					if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height); err != nil {
-						return err
-					}
+				// if the node is along paths of interest
+				// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
+				if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height); err != nil {
+					return err
 				}
+				// update seeked path after node has been indexed
+				updateSeekedPath(seekedPath, nodePath)
 
 				// traverse and process the next level of this subTrie
 				nextSubTrieIt, err := s.createSubTrieIt(nodePath, subTrieIt.Hash(), recoveredPath)
@@ -326,11 +325,20 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 	}
 }
 
+func updateSeekedPath(seekedPath *[]byte, nodePath []byte) {
+	*seekedPath = (*seekedPath)[:len(nodePath)]
+	copy(*seekedPath, nodePath)
+}
+
 func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recoveredPath []byte) (trie.NodeIterator, error) {
-	// if node path is behind recovered path and recovered path is greater in length than parent path
 	// skip to the node from recovered path at this level
+	// if node path is behind recovered path
+	// and recovered path is greater in length than parent path
+	// and recovered path includes the prefix
 	var startPath []byte
-	if bytes.Compare(recoveredPath, prefixPath) > 0 && len(recoveredPath) > len(prefixPath) {
+	if bytes.Compare(recoveredPath, prefixPath) > 0 &&
+		len(recoveredPath) > len(prefixPath) &&
+		bytes.Equal(recoveredPath[:len(prefixPath)], prefixPath) {
 		startPath = append(startPath, recoveredPath[len(prefixPath)])
 		// Force the lower bound path to an even length
 		if len(startPath)&0b1 == 1 {
