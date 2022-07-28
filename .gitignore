@@ -3,3 +3,4 @@
 ipld-eth-state-snapshot
 mocks/
 .vscode
+output_dir*/

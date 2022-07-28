@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/ethereum/go-ethereum/core/state"
@@ -31,7 +30,7 @@ func (it *trackedIter) Next(descend bool) bool {
 
 	if !ret {
 		if it.tracker.running {
-			it.tracker.stopped.Store(it, struct{}{})
+			it.tracker.stopChan <- it
 		} else {
 			log.Errorf("iterator stopped after tracker halted: path=%x", it.Path())
 		}
@@ -42,16 +41,19 @@ func (it *trackedIter) Next(descend bool) bool {
 type iteratorTracker struct {
 	recoveryFile string
 
-	started sync.Map
-	stopped sync.Map
-	running bool
+	startChan chan *trackedIter
+	stopChan  chan *trackedIter
+	started   map[*trackedIter]struct{}
+	stopped   []*trackedIter
+	running   bool
 }
 
-func newTracker(file string) iteratorTracker {
+func newTracker(file string, buf int) iteratorTracker {
 	return iteratorTracker{
 		recoveryFile: file,
-		started:      sync.Map{},
-		stopped:      sync.Map{},
+		startChan:    make(chan *trackedIter, buf),
+		stopChan:     make(chan *trackedIter, buf),
+		started:      map[*trackedIter]struct{}{},
 		running:      true,
 	}
 }
@@ -77,19 +79,15 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 	}
 
 	ret = &trackedIter{it, tr, iterSeekedPath}
-	tr.started.Store(ret, struct{}{})
+	tr.startChan <- ret
 	return
 }
 
 // dumps iterator path and bounds to a text file so it can be restored later
 func (tr *iteratorTracker) dump() error {
+	log.Debug("Dumping recovery state to: ", tr.recoveryFile)
 	var rows [][]string
-	empty := true
-
-	tr.started.Range(func(key, value any) bool {
-		empty = false
-		it := key.(*trackedIter)
-
+	for it, _ := range tr.started {
 		var endPath []byte
 		if impl, ok := it.NodeIterator.(*iter.PrefixBoundIterator); ok {
 			endPath = impl.EndPath
@@ -99,20 +97,7 @@ func (tr *iteratorTracker) dump() error {
 			fmt.Sprintf("%x", endPath),
 			fmt.Sprintf("%x", it.seekedPath),
 		})
-
-		return true
-	})
-
-	if empty {
-		// if the tracker state is empty, erase any existing recovery file
-		err := os.Remove(tr.recoveryFile)
-		if os.IsNotExist(err) {
-			err = nil
-		}
-		return err
 	}
-
-	log.Debug("Dumping recovery state to: ", tr.recoveryFile)
 
 	file, err := os.Create(tr.recoveryFile)
 	if err != nil {
@@ -181,11 +166,27 @@ func (tr *iteratorTracker) haltAndDump() error {
 	tr.running = false
 
 	// drain any pending iterators
-	tr.stopped.Range(func(key, value any) bool {
-		it := key.(*trackedIter)
-		tr.started.Delete(it)
-		return true
-	})
+	close(tr.startChan)
+	for start := range tr.startChan {
+		tr.started[start] = struct{}{}
+	}
+	close(tr.stopChan)
+	for stop := range tr.stopChan {
+		tr.stopped = append(tr.stopped, stop)
+	}
+
+	for _, stop := range tr.stopped {
+		delete(tr.started, stop)
+	}
+
+	if len(tr.started) == 0 {
+		// if the tracker state is empty, erase any existing recovery file
+		err := os.Remove(tr.recoveryFile)
+		if os.IsNotExist(err) {
+			err = nil
+		}
+		return err
+	}
 
 	return tr.dump()
 }

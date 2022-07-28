@@ -112,7 +112,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}
 
 	headerID := header.Hash().String()
-	s.tracker = newTracker(s.recoveryFile)
+	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
 	s.tracker.captureSignal()
 
 	var iters []trie.NodeIterator
@@ -125,6 +125,12 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 	if iters != nil {
 		log.Debugf("restored iterators; count: %d", len(iters))
+		if params.Workers < uint(len(iters)) {
+			return fmt.Errorf(
+				"number of recovered workers (%d) is greater than number configured (%d)",
+				len(iters), params.Workers,
+			)
+		}
 	} else { // nothing to restore
 		log.Debugf("no iterators to restore")
 		if params.Workers > 1 {
@@ -248,7 +254,10 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 	// 	(occurs before reaching state trie root OR subtrie root in case of some concurrent iterators)
 	// 	move on to next node
 	if subTrieIt.Path() == nil {
-		subTrieIt.Next(true)
+		if ok := subTrieIt.Next(true); !ok {
+			return subTrieIt.Error()
+		}
+
 		// if iterator is at an empty path and prefixPath is nil, it's a root node
 		// process root node
 		if bytes.Equal(subTrieIt.Path(), []byte{}) && prefixPath == nil {
@@ -273,14 +282,12 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 		case <-ctx.Done():
 			return subTrieIt.Error()
 		default:
+			// create the full node path as it.Path() doesn't include the path before subtrie root
+			nodePath := append(prefixPath, subTrieIt.Path()...)
+			*seekedPath = (*seekedPath)[:len(nodePath)]
+			copy(*seekedPath, nodePath)
+
 			if shouldConsiderNode {
-				// create the full node path as it.Path() doesn't include the path before subtrie root
-				nodePath := append(prefixPath, subTrieIt.Path()...)
-
-				// update the deepest seeked path
-				*seekedPath = (*seekedPath)[:len(nodePath)]
-				copy(*seekedPath, nodePath)
-
 				// ignore node if it is not along paths of interest
 				if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
 					// move to the next node, do not descend to reach sibling node
