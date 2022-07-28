@@ -34,6 +34,8 @@ var (
 	stateNodeCount   prometheus.Counter
 	storageNodeCount prometheus.Counter
 	codeNodeCount    prometheus.Counter
+
+	activeIteratorCount prometheus.Gauge
 )
 
 func Init() {
@@ -58,6 +60,13 @@ func Init() {
 		Subsystem: statsSubsystem,
 		Name:      "code_node_count",
 		Help:      "Number of code nodes processed",
+	})
+
+	activeIteratorCount = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: statsSubsystem,
+		Name:      "active_iterator_count",
+		Help:      "Number of active iterators",
 	})
 }
 
@@ -86,5 +95,19 @@ func IncStorageNodeCount() {
 func IncCodeNodeCount() {
 	if metrics {
 		codeNodeCount.Inc()
+	}
+}
+
+// IncActiveIterCount increments the number of active iterators
+func IncActiveIterCount() {
+	if metrics {
+		activeIteratorCount.Inc()
+	}
+}
+
+// DecActiveIterCount decrements the number of active iterators
+func DecActiveIterCount() {
+	if metrics {
+		activeIteratorCount.Dec()
 	}
 }

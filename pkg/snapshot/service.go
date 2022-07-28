@@ -34,6 +34,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
 	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
@@ -250,6 +251,9 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 }
 
 func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath []byte, subTrieIt trie.NodeIterator, recoveredPath []byte, seekedPath *[]byte, headerID string, height *big.Int, seekingPaths [][]byte) error {
+	prom.IncActiveIterCount()
+	defer prom.DecActiveIterCount()
+
 	// if path is nil
 	// 	(occurs before reaching state trie root OR subtrie root in case of some concurrent iterators)
 	// 	move on to next node
