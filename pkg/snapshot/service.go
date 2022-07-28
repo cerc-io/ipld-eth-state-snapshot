@@ -284,7 +284,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 	for {
 		select {
 		case <-ctx.Done():
-			return subTrieIt.Error()
+			return errors.New("ctx cancelled")
 		default:
 			// create the full node path as it.Path() doesn't include the path before subtrie root
 			nodePath := append(prefixPath, subTrieIt.Path()...)
