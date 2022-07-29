@@ -383,8 +383,7 @@ func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, h
 		encodedPath := trie.HexToCompact(valueNodePath)
 		leafKey := encodedPath[1:]
 		res.node.Key = common.BytesToHash(leafKey)
-		err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx)
-		if err != nil {
+		if err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx); err != nil {
 			return err
 		}
 

@@ -21,6 +21,14 @@ import (
 	"github.com/vulcanize/ipld-eth-state-snapshot/test"
 )
 
+var (
+	stateNodeNotIndexedErr   = "state node not indexed for path %v"
+	storageNodeNotIndexedErr = "storage node not indexed for state path %v, storage path %v"
+
+	unexpectedStateNodeErr   = "got unexpected state node for path %v"
+	unexpectedStorageNodeErr = "got unexpected storage node for state path %v, storage path %v"
+)
+
 func testConfig(leveldbpath, ancientdbpath string) *Config {
 	return &Config{
 		Eth: &EthConfig{
@@ -99,9 +107,10 @@ type storageNodeKey struct {
 
 func TestAccountSelectiveSnapshot(t *testing.T) {
 	snapShotHeight := uint64(32)
-	watchedAddresses := make(map[common.Address]struct{}, 2)
-	watchedAddresses[common.HexToAddress("0x825a6eec09e44Cb0fa19b84353ad0f7858d7F61a")] = struct{}{}
-	watchedAddresses[common.HexToAddress("0x0616F59D291a898e796a1FAD044C5926ed2103eC")] = struct{}{}
+	watchedAddresses := map[common.Address]struct{}{
+		common.HexToAddress("0x825a6eec09e44Cb0fa19b84353ad0f7858d7F61a"): {},
+		common.HexToAddress("0x0616F59D291a898e796a1FAD044C5926ed2103eC"): {},
+	}
 
 	expectedStateNodeIndexes := []int{0, 1, 2, 6}
 
@@ -158,7 +167,7 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 			AnyTimes()
 		tx.EXPECT().Commit().
 			Times(workers)
-		pub.EXPECT().PublishCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(tx)).
+		pub.EXPECT().PublishCode(gomock.Eq(fixt.Chain2_Block32_Header.Number), gomock.Any(), gomock.Any(), gomock.Eq(tx)).
 			AnyTimes()
 		pub.EXPECT().PublishStateNode(
 			gomock.Any(),
@@ -178,7 +187,7 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 						isIndexed: true,
 					})
 				} else {
-					t.Fatal("got unexpected node for path", node.Path)
+					t.Fatalf(unexpectedStateNodeErr, node.Path)
 				}
 				return nil
 			}).
@@ -205,7 +214,7 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 						isIndexed: true,
 					})
 				} else {
-					t.Fatal("got unexpected node for state path", statePath, "storage path", node.Path)
+					t.Fatal(unexpectedStorageNodeErr, statePath, node.Path)
 				}
 				return nil
 			}).
@@ -233,14 +242,14 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 
 		expectedStateNodes.Range(func(key, value any) bool {
 			if !value.(indexedNode).isIndexed {
-				t.Fatal("state node not indexed for path", []byte(key.(string)))
+				t.Fatalf(stateNodeNotIndexedErr, []byte(key.(string)))
 				return false
 			}
 			return true
 		})
 		expectedStorageNodes.Range(func(key, value any) bool {
 			if !value.(indexedNode).isIndexed {
-				t.Fatal("storage node not indexed for state path", []byte(key.(storageNodeKey).statePath), "storage path", []byte(key.(storageNodeKey).storagePath))
+				t.Fatalf(storageNodeNotIndexedErr, []byte(key.(storageNodeKey).statePath), []byte(key.(storageNodeKey).storagePath))
 				return false
 			}
 			return true
@@ -255,9 +264,10 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 
 func TestRecovery(t *testing.T) {
 	runCase := func(t *testing.T, workers int, interruptAt int32) {
-		stateNodePaths := sync.Map{}
+		// map: expected state path -> number of times it got published
+		expectedStateNodePaths := sync.Map{}
 		for _, path := range fixt.Block1_StateNodePaths {
-			stateNodePaths.Store(string(path), struct{}{})
+			expectedStateNodePaths.Store(string(path), 0)
 		}
 		var indexedStateNodesCount int32
 
@@ -272,8 +282,12 @@ func TestRecovery(t *testing.T) {
 				if indexedStateNodesCount >= interruptAt {
 					return errors.New("failingPublishStateNode")
 				} else {
-					stateNodePaths.Delete(string(node.Path))
-					atomic.AddInt32(&indexedStateNodesCount, 1)
+					if prevCount, ok := expectedStateNodePaths.Load(string(node.Path)); ok {
+						expectedStateNodePaths.Store(string(node.Path), prevCount.(int)+1)
+						atomic.AddInt32(&indexedStateNodesCount, 1)
+					} else {
+						t.Fatalf(unexpectedStateNodeErr, node.Path)
+					}
 				}
 				return nil
 			}).
@@ -311,7 +325,12 @@ func TestRecovery(t *testing.T) {
 		tx.EXPECT().Commit().AnyTimes()
 		recoveryPub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
-				stateNodePaths.Delete(string(node.Path))
+				if prevCount, ok := expectedStateNodePaths.Load(string(node.Path)); ok {
+					expectedStateNodePaths.Store(string(node.Path), prevCount.(int)+1)
+					atomic.AddInt32(&indexedStateNodesCount, 1)
+				} else {
+					t.Fatalf(unexpectedStateNodeErr, node.Path)
+				}
 				return nil
 			}).
 			AnyTimes()
@@ -337,9 +356,11 @@ func TestRecovery(t *testing.T) {
 		}
 
 		// Check if all state nodes are indexed after recovery
-		stateNodePaths.Range(func(key, value any) bool {
-			t.Fatal("state node not indexed for path", []byte(key.(string)))
-			return false
+		expectedStateNodePaths.Range(func(key, value any) bool {
+			if value.(int) == 0 {
+				t.Fatalf(stateNodeNotIndexedErr, []byte(key.(string)))
+			}
+			return true
 		})
 	}
 
@@ -348,7 +369,159 @@ func TestRecovery(t *testing.T) {
 	interrupts := make([]int32, numInterrupts)
 	for i := 0; i < numInterrupts; i++ {
 		rand.Seed(time.Now().UnixNano())
-		interrupts[i] = 1 + rand.Int31n(int32(len(fixt.Block1_StateNodePaths)))
+		interrupts[i] = rand.Int31n(int32(len(fixt.Block1_StateNodePaths)))
+	}
+
+	for _, tc := range testCases {
+		for _, interrupt := range interrupts {
+			t.Run(fmt.Sprint("case", tc, interrupt), func(t *testing.T) { runCase(t, tc, interrupt) })
+		}
+	}
+}
+
+func TestAccountSelectiveRecovery(t *testing.T) {
+	snapShotHeight := uint64(32)
+	watchedAddresses := map[common.Address]struct{}{
+		common.HexToAddress("0x825a6eec09e44Cb0fa19b84353ad0f7858d7F61a"): {},
+		common.HexToAddress("0x0616F59D291a898e796a1FAD044C5926ed2103eC"): {},
+	}
+
+	expectedStateNodeIndexes := []int{0, 1, 2, 6}
+
+	runCase := func(t *testing.T, workers int, interruptAt int32) {
+		// map: expected state path -> number of times it got published
+		expectedStateNodePaths := sync.Map{}
+		for _, expectedStateNodeIndex := range expectedStateNodeIndexes {
+			path := fixt.Chain2_Block32_StateNodes[expectedStateNodeIndex].Path
+			expectedStateNodePaths.Store(string(path), 0)
+		}
+		var indexedStateNodesCount int32
+
+		pub, tx := makeMocks(t)
+		pub.EXPECT().PublishHeader(gomock.Eq(&fixt.Chain2_Block32_Header))
+		pub.EXPECT().BeginTx().Return(tx, nil).Times(workers)
+		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
+		tx.EXPECT().Commit().Times(workers)
+		pub.EXPECT().PublishStateNode(
+			gomock.Any(),
+			gomock.Eq(fixt.Chain2_Block32_Header.Hash().String()),
+			gomock.Eq(fixt.Chain2_Block32_Header.Number),
+			gomock.Eq(tx)).
+			DoAndReturn(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
+				// Start throwing an error after a certain number of state nodes have been indexed
+				if indexedStateNodesCount >= interruptAt {
+					return errors.New("failingPublishStateNode")
+				} else {
+					if prevCount, ok := expectedStateNodePaths.Load(string(node.Path)); ok {
+						expectedStateNodePaths.Store(string(node.Path), prevCount.(int)+1)
+						atomic.AddInt32(&indexedStateNodesCount, 1)
+					} else {
+						t.Fatalf(unexpectedStateNodeErr, node.Path)
+					}
+				}
+				return nil
+			}).
+			MaxTimes(int(interruptAt) + workers)
+		pub.EXPECT().PublishStorageNode(
+			gomock.Any(),
+			gomock.Eq(fixt.Chain2_Block32_Header.Hash().String()),
+			gomock.Eq(new(big.Int).SetUint64(snapShotHeight)),
+			gomock.Any(),
+			gomock.Eq(tx)).
+			AnyTimes()
+		pub.EXPECT().PublishCode(gomock.Eq(fixt.Chain2_Block32_Header.Number), gomock.Any(), gomock.Any(), gomock.Eq(tx)).
+			AnyTimes()
+
+		chainDataPath, ancientDataPath := fixt.GetChainDataPath("chain2data")
+		config := testConfig(chainDataPath, ancientDataPath)
+		edb, err := NewLevelDB(config.Eth)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer edb.Close()
+
+		recovery := filepath.Join(t.TempDir(), "recover.csv")
+		service, err := NewSnapshotService(edb, pub, recovery)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		params := SnapshotParams{Height: snapShotHeight, Workers: uint(workers), WatchedAddresses: watchedAddresses}
+		err = service.CreateSnapshot(params)
+		if err == nil {
+			t.Fatal("expected an error")
+		}
+
+		if _, err = os.Stat(recovery); err != nil {
+			t.Fatal("cannot stat recovery file:", err)
+		}
+
+		// Create new mocks for recovery
+		recoveryPub, tx := makeMocks(t)
+		recoveryPub.EXPECT().PublishHeader(gomock.Eq(&fixt.Chain2_Block32_Header))
+		recoveryPub.EXPECT().BeginTx().Return(tx, nil).MaxTimes(workers)
+		recoveryPub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
+		tx.EXPECT().Commit().MaxTimes(workers)
+		recoveryPub.EXPECT().PublishStateNode(
+			gomock.Any(),
+			gomock.Eq(fixt.Chain2_Block32_Header.Hash().String()),
+			gomock.Eq(fixt.Chain2_Block32_Header.Number),
+			gomock.Eq(tx)).
+			DoAndReturn(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
+				if prevCount, ok := expectedStateNodePaths.Load(string(node.Path)); ok {
+					expectedStateNodePaths.Store(string(node.Path), prevCount.(int)+1)
+					atomic.AddInt32(&indexedStateNodesCount, 1)
+				} else {
+					t.Fatalf(unexpectedStateNodeErr, node.Path)
+				}
+				return nil
+			}).
+			AnyTimes()
+		recoveryPub.EXPECT().PublishStorageNode(
+			gomock.Any(),
+			gomock.Eq(fixt.Chain2_Block32_Header.Hash().String()),
+			gomock.Eq(new(big.Int).SetUint64(snapShotHeight)),
+			gomock.Any(),
+			gomock.Eq(tx)).
+			AnyTimes()
+		recoveryPub.EXPECT().PublishCode(gomock.Eq(fixt.Chain2_Block32_Header.Number), gomock.Any(), gomock.Any(), gomock.Eq(tx)).
+			AnyTimes()
+
+		// Create a new snapshot service for recovery
+		recoveryService, err := NewSnapshotService(edb, recoveryPub, recovery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = recoveryService.CreateSnapshot(params)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Check if recovery file has been deleted
+		_, err = os.Stat(recovery)
+		if err == nil {
+			t.Fatal("recovery file still present")
+		} else {
+			if !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+		}
+
+		// Check if all expected state nodes are indexed after recovery
+		expectedStateNodePaths.Range(func(key, value any) bool {
+			if value.(int) == 0 {
+				t.Fatalf(stateNodeNotIndexedErr, []byte(key.(string)))
+			}
+			return true
+		})
+	}
+
+	testCases := []int{1, 2, 4, 8, 16, 32}
+	numInterrupts := 2
+	interrupts := make([]int32, numInterrupts)
+	for i := 0; i < numInterrupts; i++ {
+		rand.Seed(time.Now().UnixNano())
+		interrupts[i] = rand.Int31n(int32(len(expectedStateNodeIndexes)))
 	}
 
 	for _, tc := range testCases {
