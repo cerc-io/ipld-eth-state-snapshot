@@ -233,24 +233,35 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 
 	// path to be seeked (from recovery dump)
 	var recoveredPath []byte
-	// deepest path seeked from the concurrent iterator
+	// latest path seeked from the concurrent iterator
 	var seekedPath *[]byte
+	// start path for the concurrent iterator
+	var startPath []byte
+	// end path for the concurrent iterator
+	var endPath []byte
 
 	if iter, ok := it.(*trackedIter); ok {
 		seekedPath = &iter.seekedPath
 		recoveredPath = append(recoveredPath, *seekedPath...)
+		startPath = iter.startPath
+		endPath = iter.endPath
 	} else {
 		return errors.New("untracked iterator")
 	}
 
-	if err := s.createSubTrieSnapshot(ctx, tx, nil, it, recoveredPath, seekedPath, headerID, height, seekingPaths); err != nil {
-		return err
+	// check concurrent iterator's lower bound
+	// keep moving ahead until satisfied
+	for !checkLowerPathBound(it.Path(), startPath) {
+		if !it.Next(true) {
+			// return if no further nodes available
+			return it.Error()
+		}
 	}
 
-	return nil
+	return s.createSubTrieSnapshot(ctx, tx, nil, it, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths)
 }
 
-func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath []byte, subTrieIt trie.NodeIterator, recoveredPath []byte, seekedPath *[]byte, headerID string, height *big.Int, seekingPaths [][]byte) error {
+func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath []byte, subTrieIt trie.NodeIterator, recoveredPath []byte, seekedPath *[]byte, endPath []byte, headerID string, height *big.Int, seekingPaths [][]byte) error {
 	prom.IncActiveIterCount()
 	defer prom.DecActiveIterCount()
 
@@ -290,6 +301,15 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			nodePath := append(prefixPath, subTrieIt.Path()...)
 
 			if shouldConsiderNode {
+				// check iterator upper bound
+				if !checkUpperPathBound(nodePath, endPath) {
+					// explicity stop the iterator in tracker
+					if trackedSubtrieIt, ok := subTrieIt.(*trackedIter); ok {
+						s.tracker.stopIter(trackedSubtrieIt)
+					}
+					return subTrieIt.Error()
+				}
+
 				// ignore node if it is not along paths of interest
 				if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
 					// update seeked path since this node is gettin ignored
@@ -312,7 +332,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 				if err != nil {
 					return err
 				}
-				if err := s.createSubTrieSnapshot(ctx, tx, nodePath, nextSubTrieIt, recoveredPath, seekedPath, headerID, height, seekingPaths); err != nil {
+				if err := s.createSubTrieSnapshot(ctx, tx, nodePath, nextSubTrieIt, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths); err != nil {
 					return err
 				}
 
@@ -323,11 +343,6 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			}
 		}
 	}
-}
-
-func updateSeekedPath(seekedPath *[]byte, nodePath []byte) {
-	*seekedPath = (*seekedPath)[:len(nodePath)]
-	copy(*seekedPath, nodePath)
 }
 
 func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recoveredPath []byte) (trie.NodeIterator, error) {

@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -62,4 +63,42 @@ func keybytesToHex(str []byte) []byte {
 	}
 	nibbles[l-1] = 16
 	return nibbles
+}
+
+func updateSeekedPath(seekedPath *[]byte, nodePath []byte) {
+	*seekedPath = (*seekedPath)[:len(nodePath)]
+	copy(*seekedPath, nodePath)
+}
+
+// checks that the provided node path is at or after the starting path
+func checkLowerPathBound(nodePath, startPath []byte) bool {
+	if startPath == nil {
+		return true
+	}
+
+	var path []byte
+	path = append(path, nodePath...)
+	if len(path)%2 != 0 {
+		// zero-pad odd-length paths to match startpath
+		path = append(path, 0)
+	}
+
+	return bytes.Compare(path, startPath) >= 0
+}
+
+// checks that the provided node path is before the end path
+func checkUpperPathBound(nodePath, endPath []byte) bool {
+	// every path is before nil endPath
+	if endPath == nil {
+		return true
+	}
+
+	var path []byte
+	path = append(path, nodePath...)
+	if len(path)%2 != 0 {
+		// zero-pad odd-length paths to match endpath
+		path = append(path, 0)
+	}
+
+	return bytes.Compare(path, endPath) < 0
 }

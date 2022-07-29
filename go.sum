@@ -658,8 +658,8 @@ github.com/tklauser/numcpus v0.2.2/go.mod h1:x3qojaO3uyYt0i56EW/VUYs7uBvdl2fkfZF
 github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
 github.com/urfave/cli v1.22.1/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
-github.com/vulcanize/go-eth-state-node-iterator v1.1.3 h1:nuHUrImcH4tn9sekvcq6jT44393uM1kvh54mb3WTTME=
-github.com/vulcanize/go-eth-state-node-iterator v1.1.3/go.mod h1:kFzlSi7rUB9mJWZf08xIEiiGuXnnUEn48It+WMHzxPc=
+github.com/vulcanize/go-eth-state-node-iterator v1.1.4 h1:2jIbgZ/yxrNZt5zmsXtvUPSxT0sP5k1PR5/O1GN/Ma0=
+github.com/vulcanize/go-eth-state-node-iterator v1.1.4/go.mod h1:kFzlSi7rUB9mJWZf08xIEiiGuXnnUEn48It+WMHzxPc=
 github.com/vulcanize/go-ethereum v1.10.21-statediff-4.1.2-alpha h1:ct+8FGuQnHA6SOGOQoAMINWdeexuSF40+IjF48J094A=
 github.com/vulcanize/go-ethereum v1.10.21-statediff-4.1.2-alpha/go.mod h1:dNJkmCSbaasX0zfQM6pm1g3rWlW3EGhLOEZMScyrRAs=
 github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc/go.mod h1:bopw91TMyo8J3tvftk8xmU2kPmlrt4nScJQZU2hE5EM=

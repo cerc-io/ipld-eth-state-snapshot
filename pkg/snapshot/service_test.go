@@ -214,7 +214,7 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 						isIndexed: true,
 					})
 				} else {
-					t.Fatal(unexpectedStorageNodeErr, statePath, node.Path)
+					t.Fatalf(unexpectedStorageNodeErr, statePath, node.Path)
 				}
 				return nil
 			}).

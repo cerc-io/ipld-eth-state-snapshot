@@ -18,7 +18,9 @@ type trackedIter struct {
 	trie.NodeIterator
 	tracker *iteratorTracker
 
-	seekedPath []byte // deepest path being seeked from the tracked iterator
+	seekedPath []byte // latest path being seeked from the tracked iterator
+	startPath  []byte
+	endPath    []byte
 }
 
 func (it *trackedIter) Next(descend bool) bool {
@@ -74,16 +76,27 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 		iterSeekedPath = append(iterSeekedPath, recoveredPath...)
 	}
 
-	ret = &trackedIter{it, tr, iterSeekedPath}
+	var startPath, endPath []byte
+	if boundedIter, ok := it.(*iter.PrefixBoundIterator); ok {
+		startPath = boundedIter.StartPath
+		endPath = boundedIter.EndPath
+	}
+
+	ret = &trackedIter{it, tr, iterSeekedPath, startPath, endPath}
 	tr.startChan <- ret
 	return
+}
+
+// explicity stops an iterator
+func (tr *iteratorTracker) stopIter(it *trackedIter) {
+	tr.stopChan <- it
 }
 
 // dumps iterator path and bounds to a text file so it can be restored later
 func (tr *iteratorTracker) dump() error {
 	log.Debug("Dumping recovery state to: ", tr.recoveryFile)
 	var rows [][]string
-	for it, _ := range tr.started {
+	for it := range tr.started {
 		var endPath []byte
 		if impl, ok := it.NodeIterator.(*iter.PrefixBoundIterator); ok {
 			endPath = impl.EndPath
@@ -151,7 +164,7 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 			startPath = append(startPath, 0)
 		}
 
-		it := iter.NewPrefixBoundIterator(tree.NodeIterator(iter.HexToKeyBytes(startPath)), endPath)
+		it := iter.NewPrefixBoundIterator(tree.NodeIterator(iter.HexToKeyBytes(startPath)), startPath, endPath)
 		ret = append(ret, tr.tracked(it, recoveredPath))
 	}
 	return ret, nil
