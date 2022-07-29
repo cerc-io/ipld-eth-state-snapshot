@@ -52,21 +52,37 @@ func makeMocks(t *testing.T) (*mock.MockPublisher, *mock.MockTx) {
 
 func TestCreateSnapshot(t *testing.T) {
 	runCase := func(t *testing.T, workers int) {
+		// map: expected state path -> struct{}{}
+		expectedStateNodePaths := sync.Map{}
+		for _, path := range fixt.Block1_StateNodePaths {
+			expectedStateNodePaths.Store(string(path), struct{}{})
+		}
+
 		pub, tx := makeMocks(t)
 		pub.EXPECT().PublishHeader(gomock.Eq(&fixt.Block1_Header))
 		pub.EXPECT().BeginTx().Return(tx, nil).
 			Times(workers)
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).
 			AnyTimes()
-		pub.EXPECT().PublishStateNode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			// Use MinTimes as duplicate nodes are expected at boundaries
-			MinTimes(len(fixt.Block1_StateNodePaths))
+		tx.EXPECT().Commit().
+			Times(workers)
+		pub.EXPECT().PublishStateNode(
+			gomock.Any(),
+			gomock.Eq(fixt.Block1_Header.Hash().String()),
+			gomock.Eq(fixt.Block1_Header.Number),
+			gomock.Eq(tx)).
+			DoAndReturn(func(node *snapt.Node, _ string, _ *big.Int, _ snapt.Tx) error {
+				if _, ok := expectedStateNodePaths.Load(string(node.Path)); ok {
+					expectedStateNodePaths.Delete(string(node.Path))
+				} else {
+					t.Fatalf(unexpectedStateNodeErr, node.Path)
+				}
+				return nil
+			}).
+			Times(len(fixt.Block1_StateNodePaths))
 
 		// TODO: fixtures for storage node
 		// pub.EXPECT().PublishStorageNode(gomock.Eq(fixt.StorageNode), gomock.Eq(int64(0)), gomock.Any())
-
-		tx.EXPECT().Commit().
-			Times(workers)
 
 		chainDataPath, ancientDataPath := fixt.GetChainDataPath("chaindata")
 		config := testConfig(chainDataPath, ancientDataPath)
@@ -87,6 +103,12 @@ func TestCreateSnapshot(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		// Check if all expected state nodes are indexed
+		expectedStateNodePaths.Range(func(key, value any) bool {
+			t.Fatalf(stateNodeNotIndexedErr, []byte(key.(string)))
+			return true
+		})
 	}
 
 	testCases := []int{1, 4, 8, 16, 32}
