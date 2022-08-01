@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -19,7 +20,6 @@ type trackedIter struct {
 	tracker *iteratorTracker
 
 	seekedPath []byte // latest path being seeked from the tracked iterator
-	startPath  []byte
 	endPath    []byte
 }
 
@@ -76,13 +76,12 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 		iterSeekedPath = append(iterSeekedPath, recoveredPath...)
 	}
 
-	var startPath, endPath []byte
+	var endPath []byte
 	if boundedIter, ok := it.(*iter.PrefixBoundIterator); ok {
-		startPath = boundedIter.StartPath
 		endPath = boundedIter.EndPath
 	}
 
-	ret = &trackedIter{it, tr, iterSeekedPath, startPath, endPath}
+	ret = &trackedIter{it, tr, iterSeekedPath, endPath}
 	tr.startChan <- ret
 	return
 }
@@ -97,15 +96,24 @@ func (tr *iteratorTracker) dump() error {
 	log.Debug("Dumping recovery state to: ", tr.recoveryFile)
 	var rows [][]string
 	for it := range tr.started {
+		var startPath []byte
 		var endPath []byte
 		if impl, ok := it.NodeIterator.(*iter.PrefixBoundIterator); ok {
 			endPath = impl.EndPath
+			startPath = impl.StartPath
 		}
+
+		// if seeked path and iterator path are non-empty, use iterator's path as startpath
+		if !bytes.Equal(it.seekedPath, []byte{}) && !bytes.Equal(it.Path(), []byte{}) {
+			startPath = it.Path()
+		}
+
 		rows = append(rows, []string{
-			fmt.Sprintf("%x", it.Path()),
+			fmt.Sprintf("%x", startPath),
 			fmt.Sprintf("%x", endPath),
 			fmt.Sprintf("%x", it.seekedPath),
 		})
+
 	}
 
 	file, err := os.Create(tr.recoveryFile)
@@ -136,6 +144,7 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 	if err != nil {
 		return nil, err
 	}
+
 	var ret []trie.NodeIterator
 	for _, row := range rows {
 		// pick up where each interval left off
@@ -161,6 +170,7 @@ func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]t
 
 		// Force the lower bound path to an even length
 		if len(startPath)&0b1 == 1 {
+			decrementPath(startPath) // decrement first to avoid skipped nodes
 			startPath = append(startPath, 0)
 		}
 

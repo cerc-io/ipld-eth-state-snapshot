@@ -70,22 +70,6 @@ func updateSeekedPath(seekedPath *[]byte, nodePath []byte) {
 	copy(*seekedPath, nodePath)
 }
 
-// checks that the provided node path is at or after the starting path
-func checkLowerPathBound(nodePath, startPath []byte) bool {
-	if startPath == nil {
-		return true
-	}
-
-	var path []byte
-	path = append(path, nodePath...)
-	if len(path)%2 != 0 {
-		// zero-pad odd-length paths to match startpath
-		path = append(path, 0)
-	}
-
-	return bytes.Compare(path, startPath) >= 0
-}
-
 // checks that the provided node path is before the end path
 func checkUpperPathBound(nodePath, endPath []byte) bool {
 	// every path is before nil endPath
@@ -93,12 +77,11 @@ func checkUpperPathBound(nodePath, endPath []byte) bool {
 		return true
 	}
 
-	var path []byte
-	path = append(path, nodePath...)
-	if len(path)%2 != 0 {
-		// zero-pad odd-length paths to match endpath
-		path = append(path, 0)
+	if len(endPath)%2 == 0 {
+		// in case of even length endpath
+		// apply open interval filter since the node at endpath will be covered by the next iterator
+		return bytes.Compare(nodePath, endPath) < 0
 	}
 
-	return bytes.Compare(path, endPath) < 0
+	return bytes.Compare(nodePath, endPath) <= 0
 }

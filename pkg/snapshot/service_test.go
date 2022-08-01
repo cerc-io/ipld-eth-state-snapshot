@@ -27,6 +27,8 @@ var (
 
 	unexpectedStateNodeErr   = "got unexpected state node for path %v"
 	unexpectedStorageNodeErr = "got unexpected storage node for state path %v, storage path %v"
+
+	extraNodesIndexedErr = "number of nodes indexed (%v) is more than expected (max %v)"
 )
 
 func testConfig(leveldbpath, ancientdbpath string) *Config {
@@ -285,6 +287,7 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 }
 
 func TestRecovery(t *testing.T) {
+	maxPathLength := 4
 	runCase := func(t *testing.T, workers int, interruptAt int32) {
 		// map: expected state path -> number of times it got published
 		expectedStateNodePaths := sync.Map{}
@@ -384,6 +387,12 @@ func TestRecovery(t *testing.T) {
 			}
 			return true
 		})
+
+		// nodes along the recovery path get reindexed
+		maxStateNodesCount := len(fixt.Block1_StateNodePaths) + workers*maxPathLength
+		if indexedStateNodesCount > int32(maxStateNodesCount) {
+			t.Fatalf(extraNodesIndexedErr, indexedStateNodesCount, maxStateNodesCount)
+		}
 	}
 
 	testCases := []int{1, 2, 4, 8, 16, 32}
@@ -402,6 +411,7 @@ func TestRecovery(t *testing.T) {
 }
 
 func TestAccountSelectiveRecovery(t *testing.T) {
+	maxPathLength := 2
 	snapShotHeight := uint64(32)
 	watchedAddresses := map[common.Address]struct{}{
 		common.HexToAddress("0x825a6eec09e44Cb0fa19b84353ad0f7858d7F61a"): {},
@@ -536,6 +546,11 @@ func TestAccountSelectiveRecovery(t *testing.T) {
 			}
 			return true
 		})
+
+		maxStateNodesCount := len(expectedStateNodeIndexes) + workers*maxPathLength
+		if indexedStateNodesCount > int32(maxStateNodesCount) {
+			t.Fatalf(extraNodesIndexedErr, indexedStateNodesCount, maxStateNodesCount)
+		}
 	}
 
 	testCases := []int{1, 2, 4, 8, 16, 32}

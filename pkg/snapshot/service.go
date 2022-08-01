@@ -235,27 +235,15 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 	var recoveredPath []byte
 	// latest path seeked from the concurrent iterator
 	var seekedPath *[]byte
-	// start path for the concurrent iterator
-	var startPath []byte
 	// end path for the concurrent iterator
 	var endPath []byte
 
 	if iter, ok := it.(*trackedIter); ok {
 		seekedPath = &iter.seekedPath
 		recoveredPath = append(recoveredPath, *seekedPath...)
-		startPath = iter.startPath
 		endPath = iter.endPath
 	} else {
 		return errors.New("untracked iterator")
-	}
-
-	// check concurrent iterator's lower bound
-	// keep moving ahead until satisfied
-	for !checkLowerPathBound(it.Path(), startPath) {
-		if !it.Next(true) {
-			// return if no further nodes available
-			return it.Error()
-		}
 	}
 
 	return s.createSubTrieSnapshot(ctx, tx, nil, it, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths)
@@ -265,81 +253,76 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 	prom.IncActiveIterCount()
 	defer prom.DecActiveIterCount()
 
-	// if path is nil
-	// 	(occurs before reaching state trie root OR subtrie root in case of some concurrent iterators)
-	// 	move on to next node
-	if subTrieIt.Path() == nil {
-		if ok := subTrieIt.Next(true); !ok {
-			return subTrieIt.Error()
-		}
-
-		// if iterator is at an empty path and prefixPath is nil, it's a root node
-		// process root node
-		if bytes.Equal(subTrieIt.Path(), []byte{}) && prefixPath == nil {
-			// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-			if err := s.createNodeSnapshot(tx, subTrieIt.Path(), subTrieIt, headerID, height); err != nil {
-				return err
-			}
-		}
-	}
-
-	shouldConsiderNode := true
-	// iterate all the nodes at this level
-	// if iterator is at an empty path
-	// (in case of root node or just before reaching next subtrie node in case of some concurrent iterators),
-	// move to the next node, descend to reach first child node
-	if bytes.Equal(subTrieIt.Path(), []byte{}) {
-		shouldConsiderNode = subTrieIt.Next(true)
-	}
-
+	// descend in the first loop iteration to reach first child node
+	descend := true
 	for {
 		select {
 		case <-ctx.Done():
 			return errors.New("ctx cancelled")
 		default:
+			if ok := subTrieIt.Next(descend); !ok {
+				return subTrieIt.Error()
+			}
+
+			// to avoid descending further
+			descend = false
+
+			// move on to next node when path is empty
+			if bytes.Equal(subTrieIt.Path(), []byte{}) {
+				// if node path is empty and prefix is nil, it's a root node
+				if prefixPath == nil {
+					// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
+					if err := s.createNodeSnapshot(tx, subTrieIt.Path(), subTrieIt, headerID, height); err != nil {
+						return err
+					}
+					updateSeekedPath(seekedPath, subTrieIt.Path())
+				}
+
+				if ok := subTrieIt.Next(true); !ok {
+					return subTrieIt.Error()
+				}
+			}
+
 			// create the full node path as it.Path() doesn't include the path before subtrie root
 			nodePath := append(prefixPath, subTrieIt.Path()...)
 
-			if shouldConsiderNode {
-				// check iterator upper bound
-				if !checkUpperPathBound(nodePath, endPath) {
-					// explicity stop the iterator in tracker
-					if trackedSubtrieIt, ok := subTrieIt.(*trackedIter); ok {
-						s.tracker.stopIter(trackedSubtrieIt)
-					}
-					return subTrieIt.Error()
+			// check iterator upper bound before processing the node
+			if !checkUpperPathBound(nodePath, endPath) {
+				// explicity stop the iterator in tracker
+				if trackedSubtrieIt, ok := subTrieIt.(*trackedIter); ok {
+					s.tracker.stopIter(trackedSubtrieIt)
 				}
-
-				// ignore node if it is not along paths of interest
-				if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
-					// update seeked path since this node is gettin ignored
-					updateSeekedPath(seekedPath, nodePath)
-					// move to the next node, do not descend to reach sibling node
-					shouldConsiderNode = subTrieIt.Next(false)
-					continue
-				}
-
-				// if the node is along paths of interest
-				// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-				if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height); err != nil {
-					return err
-				}
-				// update seeked path after node has been indexed
-				updateSeekedPath(seekedPath, nodePath)
-
-				// traverse and process the next level of this subTrie
-				nextSubTrieIt, err := s.createSubTrieIt(nodePath, subTrieIt.Hash(), recoveredPath)
-				if err != nil {
-					return err
-				}
-				if err := s.createSubTrieSnapshot(ctx, tx, nodePath, nextSubTrieIt, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths); err != nil {
-					return err
-				}
-
-				// move to the next node, do not descend to reach sibling node
-				shouldConsiderNode = subTrieIt.Next(false)
-			} else {
 				return subTrieIt.Error()
+			}
+
+			// skip if node is before recovered path and not on the recovered path
+			if bytes.Compare(recoveredPath, nodePath) > 0 && !(len(nodePath) <= len(recoveredPath) && bytes.Equal(recoveredPath[:len(nodePath)], nodePath)) {
+				continue
+			}
+
+			// ignore node if it is not along paths of interest
+			if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
+				// update seeked path since this node is getting ignored
+				updateSeekedPath(seekedPath, nodePath)
+				// move on to the next node
+				continue
+			}
+
+			// if the node is along paths of interest
+			// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
+			if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height); err != nil {
+				return err
+			}
+			// update seeked path after node has been processed
+			updateSeekedPath(seekedPath, nodePath)
+
+			// traverse and process the next level of this subTrie
+			nextSubTrieIt, err := s.createSubTrieIt(nodePath, subTrieIt.Hash(), recoveredPath)
+			if err != nil {
+				return err
+			}
+			if err := s.createSubTrieSnapshot(ctx, tx, nodePath, nextSubTrieIt, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths); err != nil {
+				return err
 			}
 		}
 	}
@@ -354,9 +337,10 @@ func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recovered
 	if bytes.Compare(recoveredPath, prefixPath) > 0 &&
 		len(recoveredPath) > len(prefixPath) &&
 		bytes.Equal(recoveredPath[:len(prefixPath)], prefixPath) {
-		startPath = append(startPath, recoveredPath[len(prefixPath)])
+		startPath = append(startPath, recoveredPath[len(prefixPath):len(prefixPath)+1]...)
 		// Force the lower bound path to an even length
 		if len(startPath)&0b1 == 1 {
+			decrementPath(startPath) // decrement first to avoid skipped nodes
 			startPath = append(startPath, 0)
 		}
 	}
