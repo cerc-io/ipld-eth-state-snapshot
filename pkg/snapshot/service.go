@@ -118,7 +118,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
-	iters, err = s.tracker.restore(tree, s.stateDB)
+	iters, err = s.tracker.restore(tree)
 	if err != nil {
 		log.Errorf("restore error: %s", err.Error())
 		return err
@@ -269,7 +269,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 
 			// move on to next node when path is empty
 			if bytes.Equal(subTrieIt.Path(), []byte{}) {
-				// if node path is empty and prefix is nil, it's a root node
+				// if node path is empty and prefix is nil, it's the root node
 				if prefixPath == nil {
 					// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
 					if err := s.createNodeSnapshot(tx, subTrieIt.Path(), subTrieIt, headerID, height); err != nil {
@@ -295,8 +295,9 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 				return subTrieIt.Error()
 			}
 
-			// skip if node is before recovered path and not on the recovered path
-			if bytes.Compare(recoveredPath, nodePath) > 0 && !(len(nodePath) <= len(recoveredPath) && bytes.Equal(recoveredPath[:len(nodePath)], nodePath)) {
+			// skip the current node if it's before recovered path and not along the recovered path
+			if bytes.Compare(recoveredPath, nodePath) > 0 &&
+				!(len(nodePath) <= len(recoveredPath) && bytes.Equal(recoveredPath[:len(nodePath)], nodePath)) {
 				continue
 			}
 

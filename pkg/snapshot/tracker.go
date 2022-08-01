@@ -20,7 +20,7 @@ type trackedIter struct {
 	tracker *iteratorTracker
 
 	seekedPath []byte // latest path being seeked from the tracked iterator
-	endPath    []byte
+	endPath    []byte // endPath for the tracked iterator
 }
 
 func (it *trackedIter) Next(descend bool) bool {
@@ -128,7 +128,7 @@ func (tr *iteratorTracker) dump() error {
 
 // attempts to read iterator state from file
 // if file doesn't exist, returns an empty slice with no error
-func (tr *iteratorTracker) restore(tree state.Trie, stateDB state.Database) ([]trie.NodeIterator, error) {
+func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error) {
 	file, err := os.Open(tr.recoveryFile)
 	if err != nil {
 		if os.IsNotExist(err) {
