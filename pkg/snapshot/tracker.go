@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -56,15 +57,14 @@ func newTracker(file string, buf int) iteratorTracker {
 	}
 }
 
-func (tr *iteratorTracker) captureSignal() {
+func (tr *iteratorTracker) captureSignal(cancelCtx context.CancelFunc) {
 	sigChan := make(chan os.Signal, 1)
 
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
 		log.Errorf("Signal received (%v), stopping", sig)
-		tr.haltAndDump()
-		os.Exit(1)
+		cancelCtx()
 	}()
 }
 
@@ -113,7 +113,6 @@ func (tr *iteratorTracker) dump() error {
 			fmt.Sprintf("%x", endPath),
 			fmt.Sprintf("%x", it.seekedPath),
 		})
-
 	}
 
 	file, err := os.Create(tr.recoveryFile)

@@ -269,6 +269,7 @@ var Chain2_Block32_StorageNodes = []StorageNodeWithState{
 	},
 }
 
+// Contracts used in chain2
 /*
 pragma solidity ^0.8.0;
 

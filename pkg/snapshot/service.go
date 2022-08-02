@@ -113,8 +113,10 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}
 
 	headerID := header.Hash().String()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
 	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
-	s.tracker.captureSignal()
+	s.tracker.captureSignal(cancelCtx)
 
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
@@ -132,7 +134,8 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 				len(iters), params.Workers,
 			)
 		}
-	} else { // nothing to restore
+	} else {
+		// nothing to restore
 		log.Debugf("no iterators to restore")
 		if params.Workers > 1 {
 			iters = iter.SubtrieIterators(tree, params.Workers)
@@ -140,6 +143,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
 		}
 		for i, it := range iters {
+			// recovered path is nil for fresh iterators
 			iters[i] = s.tracker.tracked(it, nil)
 		}
 	}
@@ -153,9 +157,9 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 
 	switch {
 	case len(iters) > 1:
-		return s.createSnapshotAsync(iters, headerID, new(big.Int).SetUint64(params.Height), paths)
+		return s.createSnapshotAsync(ctx, iters, headerID, new(big.Int).SetUint64(params.Height), paths)
 	case len(iters) == 1:
-		return s.createSnapshot(context.Background(), iters[0], headerID, new(big.Int).SetUint64(params.Height), paths)
+		return s.createSnapshot(ctx, iters[0], headerID, new(big.Int).SetUint64(params.Height), paths)
 	default:
 		return nil
 	}
@@ -416,8 +420,8 @@ func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, h
 }
 
 // Full-trie concurrent snapshot
-func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
-	g, ctx := errgroup.WithContext(context.Background())
+func (s *Service) createSnapshotAsync(ctx context.Context, iters []trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
+	g, ctx := errgroup.WithContext(ctx)
 	for _, it := range iters {
 		func(it trie.NodeIterator) {
 			g.Go(func() error {

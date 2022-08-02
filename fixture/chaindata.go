@@ -9,6 +9,7 @@ import (
 // import "embed"
 //_go:embed mainnet_data.tar.gz
 
+// GetChainDataPath returns the absolute paths to chain data in 'fixture/' given the chain (chain | chain2)
 func GetChainDataPath(chain string) (string, string) {
 	path := filepath.Join("..", "..", "fixture", chain)
 
