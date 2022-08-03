@@ -22,6 +22,7 @@ Config format:
     workers      = 4                # degree of concurrency, the state trie is subdivided into sections that are traversed and processed concurrently
     blockHeight  = -1               # blockheight to perform the snapshot at (-1 indicates to use the latest blockheight found in leveldb)
     recoveryFile = "recovery_file"  # specifies a file to output recovery information on error or premature closure
+    accounts = []                   # list of accounts (addresses) to take the snapshot for # SNAPSHOT_ACCOUNTS
 
 [leveldb]
     # path to geth leveldb
@@ -71,6 +72,17 @@ Config format:
     ```bash
     ./ipld-eth-state-snapshot stateSnapshot --config={path to toml config file}
     ```
+
+    * Account selective snapshot: To restrict the snapshot to a list of accounts (addresses), provide the addresses in config parameter `snapshot.accounts` or env variable `SNAPSHOT_ACCOUNTS`. Only nodes related to provided addresses will be indexed.
+
+        Example:
+
+        ```toml
+        [snapshot]
+            accounts = [
+                "0x825a6eec09e44Cb0fa19b84353ad0f7858d7F61a"
+            ]
+        ```
 
 * For in-place snapshot in the database:
 

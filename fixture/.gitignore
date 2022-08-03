@@ -1,0 +1,7 @@
+*/*.log
+*/CURRENT*
+*/LOCK
+*/LOG
+*/MANIFEST-*
+*/ancient/FLOCK
+*/ancient/*.meta

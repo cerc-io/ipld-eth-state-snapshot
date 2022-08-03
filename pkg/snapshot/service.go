@@ -17,10 +17,10 @@ package snapshot
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -30,10 +30,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	iter "github.com/vulcanize/go-eth-state-node-iterator"
+	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
 	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
@@ -48,12 +49,13 @@ var (
 // Service holds ethDB and stateDB to read data from lvldb and Publisher
 // to publish trie in postgres DB.
 type Service struct {
-	ethDB         ethdb.Database
-	stateDB       state.Database
-	ipfsPublisher Publisher
-	maxBatchSize  uint
-	tracker       iteratorTracker
-	recoveryFile  string
+	watchingAddresses bool
+	ethDB             ethdb.Database
+	stateDB           state.Database
+	ipfsPublisher     Publisher
+	maxBatchSize      uint
+	tracker           iteratorTracker
+	recoveryFile      string
 }
 
 func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
@@ -78,11 +80,17 @@ func NewSnapshotService(edb ethdb.Database, pub Publisher, recoveryFile string) 
 }
 
 type SnapshotParams struct {
-	Height  uint64
-	Workers uint
+	WatchedAddresses map[common.Address]struct{}
+	Height           uint64
+	Workers          uint
 }
 
 func (s *Service) CreateSnapshot(params SnapshotParams) error {
+	paths := make([][]byte, 0, len(params.WatchedAddresses))
+	for addr := range params.WatchedAddresses {
+		paths = append(paths, keybytesToHex(crypto.Keccak256(addr.Bytes())))
+	}
+	s.watchingAddresses = len(paths) > 0
 	// extract header from lvldb and publish to PG-IPFS
 	// hold onto the headerID so that we can link the state nodes to this header
 	log.Infof("Creating snapshot at height %d", params.Height)
@@ -105,8 +113,10 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	}
 
 	headerID := header.Hash().String()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
 	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
-	s.tracker.captureSignal()
+	s.tracker.captureSignal(cancelCtx)
 
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
@@ -124,7 +134,8 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 				len(iters), params.Workers,
 			)
 		}
-	} else { // nothing to restore
+	} else {
+		// nothing to restore
 		log.Debugf("no iterators to restore")
 		if params.Workers > 1 {
 			iters = iter.SubtrieIterators(tree, params.Workers)
@@ -132,7 +143,8 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
 		}
 		for i, it := range iters {
-			iters[i] = s.tracker.tracked(it)
+			// recovered path is nil for fresh iterators
+			iters[i] = s.tracker.tracked(it, nil)
 		}
 	}
 
@@ -143,22 +155,25 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		}
 	}()
 
-	if len(iters) > 0 {
-		return s.createSnapshotAsync(iters, headerID, new(big.Int).SetUint64(params.Height))
-	} else {
-		return s.createSnapshot(iters[0], headerID, new(big.Int).SetUint64(params.Height))
+	switch {
+	case len(iters) > 1:
+		return s.createSnapshotAsync(ctx, iters, headerID, new(big.Int).SetUint64(params.Height), paths)
+	case len(iters) == 1:
+		return s.createSnapshot(ctx, iters[0], headerID, new(big.Int).SetUint64(params.Height), paths)
+	default:
+		return nil
 	}
 }
 
 // Create snapshot up to head (ignores height param)
-func (s *Service) CreateLatestSnapshot(workers uint) error {
+func (s *Service) CreateLatestSnapshot(workers uint, watchedAddresses map[common.Address]struct{}) error {
 	log.Info("Creating snapshot at head")
 	hash := rawdb.ReadHeadHeaderHash(s.ethDB)
 	height := rawdb.ReadHeaderNumber(s.ethDB, hash)
 	if height == nil {
 		return fmt.Errorf("unable to read header height for header hash %s", hash.String())
 	}
-	return s.CreateSnapshot(SnapshotParams{Height: *height, Workers: workers})
+	return s.CreateSnapshot(SnapshotParams{Height: *height, Workers: workers, WatchedAddresses: watchedAddresses})
 }
 
 type nodeResult struct {
@@ -166,7 +181,7 @@ type nodeResult struct {
 	elements []interface{}
 }
 
-func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, error) {
+func resolveNode(nodePath []byte, it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, error) {
 	// "leaf" nodes are actually "value" nodes, whose parents are the actual leaves
 	if it.Leaf() {
 		return nil, nil
@@ -175,8 +190,10 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 		return nil, nil
 	}
 
-	path := make([]byte, len(it.Path()))
-	copy(path, it.Path())
+	// use full node path
+	// (it.Path() will give partial path in case of subtrie iterators)
+	path := make([]byte, len(nodePath))
+	copy(path, nodePath)
 	n, err := trieDB.Node(it.Hash())
 	if err != nil {
 		return nil, err
@@ -199,7 +216,19 @@ func resolveNode(it trie.NodeIterator, trieDB *trie.Database) (*nodeResult, erro
 	}, nil
 }
 
-func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *big.Int) error {
+// validPath checks if a path is prefix to any one of the paths in the given list
+func validPath(currentPath []byte, seekingPaths [][]byte) bool {
+	for _, seekingPath := range seekingPaths {
+		if bytes.HasPrefix(seekingPath, currentPath) {
+			return true
+		}
+	}
+	return false
+}
+
+// createSnapshot performs traversal using the given iterator and indexes the nodes
+// optionally filtering them according to a list of paths
+func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
 	tx, err := s.ipfsPublisher.BeginTx()
 	if err != nil {
 		return err
@@ -207,99 +236,234 @@ func (s *Service) createSnapshot(it trie.NodeIterator, headerID string, height *
 	defer func() {
 		err = CommitOrRollback(tx, err)
 		if err != nil {
-			logrus.Errorf("CommitOrRollback failed: %s", err)
+			log.Errorf("CommitOrRollback failed: %s", err)
 		}
 	}()
 
-	for it.Next(true) {
-		res, err := resolveNode(it, s.stateDB.TrieDB())
-		if err != nil {
-			return err
-		}
-		if res == nil {
-			continue
-		}
+	// path (from recovery dump) to be seeked on recovery
+	// nil in case of a fresh iterator
+	var recoveredPath []byte
 
-		tx, err = s.ipfsPublisher.PrepareTxForBatch(tx, s.maxBatchSize)
-		if err != nil {
-			return err
-		}
+	// latest path seeked from the concurrent iterator
+	// (updated after a node processed)
+	// nil in case of a fresh iterator; initially holds the recovered path in case of a recovered iterator
+	var seekedPath *[]byte
 
-		switch res.node.NodeType {
-		case Leaf:
-			// if the node is a leaf, decode the account and publish the associated storage trie
-			// nodes if there are any
-			var account types.StateAccount
-			if err := rlp.DecodeBytes(res.elements[1].([]byte), &account); err != nil {
-				return fmt.Errorf(
-					"error decoding account for leaf node at path %x nerror: %v", res.node.Path, err)
+	// end path for the concurrent iterator
+	var endPath []byte
+
+	if iter, ok := it.(*trackedIter); ok {
+		seekedPath = &iter.seekedPath
+		recoveredPath = append(recoveredPath, *seekedPath...)
+		endPath = iter.endPath
+	} else {
+		return errors.New("untracked iterator")
+	}
+
+	return s.createSubTrieSnapshot(ctx, tx, nil, it, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths)
+}
+
+// createSubTrieSnapshot processes nodes at the next level of a trie using the given subtrie iterator
+// continually updating seekedPath with path of the latest processed node
+func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath []byte, subTrieIt trie.NodeIterator, recoveredPath []byte, seekedPath *[]byte, endPath []byte, headerID string, height *big.Int, seekingPaths [][]byte) error {
+	prom.IncActiveIterCount()
+	defer prom.DecActiveIterCount()
+
+	// descend in the first loop iteration to reach first child node
+	descend := true
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.New("ctx cancelled")
+		default:
+			if ok := subTrieIt.Next(descend); !ok {
+				return subTrieIt.Error()
 			}
-			partialPath := trie.CompactToHex(res.elements[0].([]byte))
-			valueNodePath := append(res.node.Path, partialPath...)
-			encodedPath := trie.HexToCompact(valueNodePath)
-			leafKey := encodedPath[1:]
-			res.node.Key = common.BytesToHash(leafKey)
-			err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx)
+
+			// to avoid descending further
+			descend = false
+
+			// move on to next node if current path is empty
+			// occurs when reaching root node or just before reaching the first child of a subtrie in case of some concurrent iterators
+			if bytes.Equal(subTrieIt.Path(), []byte{}) {
+				// if node path is empty and prefix is nil, it's the root node
+				if prefixPath == nil {
+					// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
+					if err := s.createNodeSnapshot(tx, subTrieIt.Path(), subTrieIt, headerID, height); err != nil {
+						return err
+					}
+					updateSeekedPath(seekedPath, subTrieIt.Path())
+				}
+
+				if ok := subTrieIt.Next(true); !ok {
+					// return if no further nodes available
+					return subTrieIt.Error()
+				}
+			}
+
+			// create the full node path as it.Path() doesn't include the path before subtrie root
+			nodePath := append(prefixPath, subTrieIt.Path()...)
+
+			// check iterator upper bound before processing the node
+			// required to avoid processing duplicate nodes:
+			//   if a node is considered more than once,
+			//   it's whole subtrie is re-processed giving large number of duplicate nodoes
+			if !checkUpperPathBound(nodePath, endPath) {
+				// fmt.Println("failed checkUpperPathBound", nodePath, endPath)
+				// explicitly stop the iterator in tracker if upper bound check fails
+				// required since it won't be marked as stopped if further nodes are still available
+				if trackedSubtrieIt, ok := subTrieIt.(*trackedIter); ok {
+					s.tracker.stopIter(trackedSubtrieIt)
+				}
+				return subTrieIt.Error()
+			}
+
+			// skip the current node if it's before recovered path and not along the recovered path
+			// nodes at the same level that are before recovered path are ignored to avoid duplicate nodes
+			// however, nodes along the recovered path are re-considered for redundancy
+			if bytes.Compare(recoveredPath, nodePath) > 0 &&
+				// a node is along the recovered path if it's path is shorter or equal in length
+				// and is part of the recovered path
+				!(len(nodePath) <= len(recoveredPath) && bytes.Equal(recoveredPath[:len(nodePath)], nodePath)) {
+				continue
+			}
+
+			// ignore node if it is not along paths of interest
+			if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
+				// consider this node as processed since it is getting ignored
+				// and update the seeked path
+				updateSeekedPath(seekedPath, nodePath)
+				// move on to the next node
+				continue
+			}
+
+			// if the node is along paths of interest
+			// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
+			if err := s.createNodeSnapshot(tx, nodePath, subTrieIt, headerID, height); err != nil {
+				return err
+			}
+			// update seeked path after node has been processed
+			updateSeekedPath(seekedPath, nodePath)
+
+			// create an iterator to traverse and process the next level of this subTrie
+			nextSubTrieIt, err := s.createSubTrieIt(nodePath, subTrieIt.Hash(), recoveredPath)
 			if err != nil {
 				return err
 			}
-
-			// publish any non-nil code referenced by codehash
-			if !bytes.Equal(account.CodeHash, emptyCodeHash) {
-				codeHash := common.BytesToHash(account.CodeHash)
-				codeBytes := rawdb.ReadCode(s.ethDB, codeHash)
-				if len(codeBytes) == 0 {
-					log.Error("Code is missing", "account", common.BytesToHash(it.LeafKey()))
-					return errors.New("missing code")
-				}
-
-				if err = s.ipfsPublisher.PublishCode(height, codeHash, codeBytes, tx); err != nil {
-					return err
-				}
-			}
-
-			if tx, err = s.storageSnapshot(account.Root, headerID, height, res.node.Path, tx); err != nil {
-				return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %w", account, err)
-			}
-		case Extension, Branch:
-			res.node.Key = common.BytesToHash([]byte{})
-			if err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx); err != nil {
+			// pass on the seekedPath of the tracked concurrent iterator to be updated
+			if err := s.createSubTrieSnapshot(ctx, tx, nodePath, nextSubTrieIt, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths); err != nil {
 				return err
 			}
-		default:
-			return errors.New("unexpected node type")
 		}
+	}
+}
+
+// createSubTrieIt creates an iterator to traverse the subtrie of node with the given hash
+// the subtrie iterator is initialized at a node from the recovered path at corresponding level (if avaiable)
+func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recoveredPath []byte) (trie.NodeIterator, error) {
+	// skip directly to the node from the recovered path at corresponding level
+	// applicable if:
+	//   node path is behind recovered path
+	//   and recovered path includes the prefix path
+	var startPath []byte
+	if bytes.Compare(recoveredPath, prefixPath) > 0 &&
+		len(recoveredPath) > len(prefixPath) &&
+		bytes.Equal(recoveredPath[:len(prefixPath)], prefixPath) {
+		startPath = append(startPath, recoveredPath[len(prefixPath):len(prefixPath)+1]...)
+		// force the lower bound path to an even length
+		// (required by HexToKeyBytes())
+		if len(startPath)&0b1 == 1 {
+			// decrement first to avoid skipped nodes
+			decrementPath(startPath)
+			startPath = append(startPath, 0)
+		}
+	}
+
+	// create subTrie iterator with the given hash
+	subTrie, err := s.stateDB.OpenTrie(hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return subTrie.NodeIterator(iter.HexToKeyBytes(startPath)), nil
+}
+
+// createNodeSnapshot indexes the current node
+// entire storage trie is also indexed (if available)
+func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, headerID string, height *big.Int) error {
+	res, err := resolveNode(path, it, s.stateDB.TrieDB())
+	if err != nil {
+		return err
+	}
+	if res == nil {
+		return nil
+	}
+
+	tx, err = s.ipfsPublisher.PrepareTxForBatch(tx, s.maxBatchSize)
+	if err != nil {
+		return err
+	}
+
+	switch res.node.NodeType {
+	case Leaf:
+		// if the node is a leaf, decode the account and publish the associated storage trie
+		// nodes if there are any
+		var account types.StateAccount
+		if err := rlp.DecodeBytes(res.elements[1].([]byte), &account); err != nil {
+			return fmt.Errorf(
+				"error decoding account for leaf node at path %x nerror: %v", res.node.Path, err)
+		}
+		partialPath := trie.CompactToHex(res.elements[0].([]byte))
+		valueNodePath := append(res.node.Path, partialPath...)
+		encodedPath := trie.HexToCompact(valueNodePath)
+		leafKey := encodedPath[1:]
+		res.node.Key = common.BytesToHash(leafKey)
+		if err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx); err != nil {
+			return err
+		}
+
+		// publish any non-nil code referenced by codehash
+		if !bytes.Equal(account.CodeHash, emptyCodeHash) {
+			codeHash := common.BytesToHash(account.CodeHash)
+			codeBytes := rawdb.ReadCode(s.ethDB, codeHash)
+			if len(codeBytes) == 0 {
+				log.Error("Code is missing", "account", common.BytesToHash(it.LeafKey()))
+				return errors.New("missing code")
+			}
+
+			if err = s.ipfsPublisher.PublishCode(height, codeHash, codeBytes, tx); err != nil {
+				return err
+			}
+		}
+
+		if _, err = s.storageSnapshot(account.Root, headerID, height, res.node.Path, tx); err != nil {
+			return fmt.Errorf("failed building storage snapshot for account %+v\r\nerror: %w", account, err)
+		}
+	case Extension, Branch:
+		res.node.Key = common.BytesToHash([]byte{})
+		if err := s.ipfsPublisher.PublishStateNode(&res.node, headerID, height, tx); err != nil {
+			return err
+		}
+	default:
+		return errors.New("unexpected node type")
 	}
 	return it.Error()
 }
 
 // Full-trie concurrent snapshot
-func (s *Service) createSnapshotAsync(iters []trie.NodeIterator, headerID string, height *big.Int) error {
-	errors := make(chan error)
-	var wg sync.WaitGroup
+func (s *Service) createSnapshotAsync(ctx context.Context, iters []trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
+	// use errgroup with a context to stop all concurrent iterators if one runs into an error
+	// each concurrent iterator completes processing it's current node before stopping
+	g, ctx := errgroup.WithContext(ctx)
 	for _, it := range iters {
-		wg.Add(1)
-		go func(it trie.NodeIterator) {
-			defer wg.Done()
-			if err := s.createSnapshot(it, headerID, height); err != nil {
-				errors <- err
-			}
+		func(it trie.NodeIterator) {
+			g.Go(func() error {
+				return s.createSnapshot(ctx, it, headerID, height, seekingPaths)
+			})
 		}(it)
 	}
 
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		done <- struct{}{}
-	}()
-
-	var err error
-	select {
-	case err = <-errors:
-	case <-done:
-		close(errors)
-	}
-	return err
+	return g.Wait()
 }
 
 func (s *Service) storageSnapshot(sr common.Hash, headerID string, height *big.Int, statePath []byte, tx Tx) (Tx, error) {
@@ -314,7 +478,7 @@ func (s *Service) storageSnapshot(sr common.Hash, headerID string, height *big.I
 
 	it := sTrie.NodeIterator(make([]byte, 0))
 	for it.Next(true) {
-		res, err := resolveNode(it, s.stateDB.TrieDB())
+		res, err := resolveNode(it.Path(), it, s.stateDB.TrieDB())
 		if err != nil {
 			return nil, err
 		}
