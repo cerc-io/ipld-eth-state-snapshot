@@ -66,6 +66,7 @@ func keybytesToHex(str []byte) []byte {
 }
 
 func updateSeekedPath(seekedPath *[]byte, nodePath []byte) {
+	// assumes len(nodePath) <= max len(*seekedPath)
 	*seekedPath = (*seekedPath)[:len(nodePath)]
 	copy(*seekedPath, nodePath)
 }

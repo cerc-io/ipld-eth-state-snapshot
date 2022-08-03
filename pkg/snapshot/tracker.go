@@ -20,7 +20,7 @@ type trackedIter struct {
 	trie.NodeIterator
 	tracker *iteratorTracker
 
-	seekedPath []byte // latest path being seeked from the tracked iterator
+	seekedPath []byte // latest path seeked from the tracked iterator
 	endPath    []byte // endPath for the tracked iterator
 }
 
@@ -64,18 +64,24 @@ func (tr *iteratorTracker) captureSignal(cancelCtx context.CancelFunc) {
 	go func() {
 		sig := <-sigChan
 		log.Errorf("Signal received (%v), stopping", sig)
+		// cancel context on receiving a signal
+		// on ctx cancellation, all the iterators complete processing of their current node before stopping
 		cancelCtx()
 	}()
 }
 
 // Wraps an iterator in a trackedIter. This should not be called once halts are possible.
 func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (ret *trackedIter) {
-	// create seeked path of max capacity (65) and populate with provided path
+	// create seeked path of max capacity (65)
 	iterSeekedPath := make([]byte, 0, 65)
+	// intially populate seeked path with the recovered path
+	// to be used in trie traversal
 	if recoveredPath != nil {
 		iterSeekedPath = append(iterSeekedPath, recoveredPath...)
 	}
 
+	// if the iterator being tracked is a PrefixBoundIterator, capture it's end path
+	// to be used in trie traversal
 	var endPath []byte
 	if boundedIter, ok := it.(*iter.PrefixBoundIterator); ok {
 		endPath = boundedIter.EndPath
@@ -86,7 +92,7 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 	return
 }
 
-// explicity stops an iterator
+// explicitly stops an iterator
 func (tr *iteratorTracker) stopIter(it *trackedIter) {
 	tr.stopChan <- it
 }
@@ -99,8 +105,10 @@ func (tr *iteratorTracker) dump() error {
 		var startPath []byte
 		var endPath []byte
 		if impl, ok := it.NodeIterator.(*iter.PrefixBoundIterator); ok {
-			endPath = impl.EndPath
+			// if the iterator being tracked is a PrefixBoundIterator,
+			// initialize start and end paths with its bounds
 			startPath = impl.StartPath
+			endPath = impl.EndPath
 		}
 
 		// if seeked path and iterator path are non-empty, use iterator's path as startpath
@@ -167,9 +175,11 @@ func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error)
 			}
 		}
 
-		// Force the lower bound path to an even length
+		// force the lower bound path to an even length
+		// (required by HexToKeyBytes())
 		if len(startPath)&0b1 == 1 {
-			decrementPath(startPath) // decrement first to avoid skipped nodes
+			// decrement first to avoid skipped nodes
+			decrementPath(startPath)
 			startPath = append(startPath, 0)
 		}
 

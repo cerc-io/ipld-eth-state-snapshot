@@ -190,6 +190,8 @@ func resolveNode(nodePath []byte, it trie.NodeIterator, trieDB *trie.Database) (
 		return nil, nil
 	}
 
+	// use full node path
+	// (it.Path() will give partial path in case of subtrie iterators)
 	path := make([]byte, len(nodePath))
 	copy(path, nodePath)
 	n, err := trieDB.Node(it.Hash())
@@ -214,6 +216,7 @@ func resolveNode(nodePath []byte, it trie.NodeIterator, trieDB *trie.Database) (
 	}, nil
 }
 
+// validPath checks if a path is prefix to any one of the paths in the given list
 func validPath(currentPath []byte, seekingPaths [][]byte) bool {
 	for _, seekingPath := range seekingPaths {
 		if bytes.HasPrefix(seekingPath, currentPath) {
@@ -223,6 +226,8 @@ func validPath(currentPath []byte, seekingPaths [][]byte) bool {
 	return false
 }
 
+// createSnapshot performs traversal using the given iterator and indexes the nodes
+// optionally filtering them according to a list of paths
 func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
 	tx, err := s.ipfsPublisher.BeginTx()
 	if err != nil {
@@ -235,10 +240,15 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 		}
 	}()
 
-	// path to be seeked (from recovery dump)
+	// path (from recovery dump) to be seeked on recovery
+	// nil in case of a fresh iterator
 	var recoveredPath []byte
+
 	// latest path seeked from the concurrent iterator
+	// (updated after a node processed)
+	// nil in case of a fresh iterator; initially holds the recovered path in case of a recovered iterator
 	var seekedPath *[]byte
+
 	// end path for the concurrent iterator
 	var endPath []byte
 
@@ -253,6 +263,8 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 	return s.createSubTrieSnapshot(ctx, tx, nil, it, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths)
 }
 
+// createSubTrieSnapshot processes nodes at the next level of a trie using the given subtrie iterator
+// continually updating seekedPath with path of the latest processed node
 func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath []byte, subTrieIt trie.NodeIterator, recoveredPath []byte, seekedPath *[]byte, endPath []byte, headerID string, height *big.Int, seekingPaths [][]byte) error {
 	prom.IncActiveIterCount()
 	defer prom.DecActiveIterCount()
@@ -271,7 +283,8 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			// to avoid descending further
 			descend = false
 
-			// move on to next node when path is empty
+			// move on to next node if current path is empty
+			// occurs when reaching root node or just before reaching the first child of a subtrie in case of some concurrent iterators
 			if bytes.Equal(subTrieIt.Path(), []byte{}) {
 				// if node path is empty and prefix is nil, it's the root node
 				if prefixPath == nil {
@@ -283,6 +296,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 				}
 
 				if ok := subTrieIt.Next(true); !ok {
+					// return if no further nodes available
 					return subTrieIt.Error()
 				}
 			}
@@ -291,8 +305,13 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			nodePath := append(prefixPath, subTrieIt.Path()...)
 
 			// check iterator upper bound before processing the node
+			// required to avoid processing duplicate nodes:
+			//   if a node is considered more than once,
+			//   it's whole subtrie is re-processed giving large number of duplicate nodoes
 			if !checkUpperPathBound(nodePath, endPath) {
-				// explicity stop the iterator in tracker
+				// fmt.Println("failed checkUpperPathBound", nodePath, endPath)
+				// explicitly stop the iterator in tracker if upper bound check fails
+				// required since it won't be marked as stopped if further nodes are still available
 				if trackedSubtrieIt, ok := subTrieIt.(*trackedIter); ok {
 					s.tracker.stopIter(trackedSubtrieIt)
 				}
@@ -300,14 +319,19 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			}
 
 			// skip the current node if it's before recovered path and not along the recovered path
+			// nodes at the same level that are before recovered path are ignored to avoid duplicate nodes
+			// however, nodes along the recovered path are re-considered for redundancy
 			if bytes.Compare(recoveredPath, nodePath) > 0 &&
+				// a node is along the recovered path if it's path is shorter or equal in length
+				// and is part of the recovered path
 				!(len(nodePath) <= len(recoveredPath) && bytes.Equal(recoveredPath[:len(nodePath)], nodePath)) {
 				continue
 			}
 
 			// ignore node if it is not along paths of interest
 			if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
-				// update seeked path since this node is getting ignored
+				// consider this node as processed since it is getting ignored
+				// and update the seeked path
 				updateSeekedPath(seekedPath, nodePath)
 				// move on to the next node
 				continue
@@ -321,11 +345,12 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			// update seeked path after node has been processed
 			updateSeekedPath(seekedPath, nodePath)
 
-			// traverse and process the next level of this subTrie
+			// create an iterator to traverse and process the next level of this subTrie
 			nextSubTrieIt, err := s.createSubTrieIt(nodePath, subTrieIt.Hash(), recoveredPath)
 			if err != nil {
 				return err
 			}
+			// pass on the seekedPath of the tracked concurrent iterator to be updated
 			if err := s.createSubTrieSnapshot(ctx, tx, nodePath, nextSubTrieIt, recoveredPath, seekedPath, endPath, headerID, height, seekingPaths); err != nil {
 				return err
 			}
@@ -333,19 +358,23 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 	}
 }
 
+// createSubTrieIt creates an iterator to traverse the subtrie of node with the given hash
+// the subtrie iterator is initialized at a node from the recovered path at corresponding level (if avaiable)
 func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recoveredPath []byte) (trie.NodeIterator, error) {
-	// skip to the node from recovered path at this level
-	// if node path is behind recovered path
-	// and recovered path is greater in length than parent path
-	// and recovered path includes the prefix
+	// skip directly to the node from the recovered path at corresponding level
+	// applicable if:
+	//   node path is behind recovered path
+	//   and recovered path includes the prefix path
 	var startPath []byte
 	if bytes.Compare(recoveredPath, prefixPath) > 0 &&
 		len(recoveredPath) > len(prefixPath) &&
 		bytes.Equal(recoveredPath[:len(prefixPath)], prefixPath) {
 		startPath = append(startPath, recoveredPath[len(prefixPath):len(prefixPath)+1]...)
-		// Force the lower bound path to an even length
+		// force the lower bound path to an even length
+		// (required by HexToKeyBytes())
 		if len(startPath)&0b1 == 1 {
-			decrementPath(startPath) // decrement first to avoid skipped nodes
+			// decrement first to avoid skipped nodes
+			decrementPath(startPath)
 			startPath = append(startPath, 0)
 		}
 	}
@@ -359,6 +388,8 @@ func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recovered
 	return subTrie.NodeIterator(iter.HexToKeyBytes(startPath)), nil
 }
 
+// createNodeSnapshot indexes the current node
+// entire storage trie is also indexed (if available)
 func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, headerID string, height *big.Int) error {
 	res, err := resolveNode(path, it, s.stateDB.TrieDB())
 	if err != nil {
@@ -421,6 +452,8 @@ func (s *Service) createNodeSnapshot(tx Tx, path []byte, it trie.NodeIterator, h
 
 // Full-trie concurrent snapshot
 func (s *Service) createSnapshotAsync(ctx context.Context, iters []trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
+	// use errgroup with a context to stop all concurrent iterators if one runs into an error
+	// each concurrent iterator completes processing it's current node before stopping
 	g, ctx := errgroup.WithContext(ctx)
 	for _, it := range iters {
 		func(it trie.NodeIterator) {

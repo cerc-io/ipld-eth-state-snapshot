@@ -547,6 +547,7 @@ func TestAccountSelectiveRecovery(t *testing.T) {
 			return true
 		})
 
+		// nodes along the recovery path get reindexed
 		maxStateNodesCount := len(expectedStateNodeIndexes) + workers*maxPathLength
 		if indexedStateNodesCount > int32(maxStateNodesCount) {
 			t.Fatalf(extraNodesIndexedErr, indexedStateNodesCount, maxStateNodesCount)
