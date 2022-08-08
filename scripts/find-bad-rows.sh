@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # flags
-# -i <input-file>:        Input data file
-# -c <expected-columns>:  Expected number of columns in each row in the input file
-# -o [output-file]:       Output destination file (default: STDOUT)
-# -d [true | false]:      Whether to include the data row in output (default: false)
+# -i <input-file>:        Input data file path
+# -c <expected-columns>:  Expected number of columns in each row of the input file
+# -o [output-file]:       Output destination file path (default: STDOUT)
+# -d [include-data]:      Whether to include the data row in output (true | false) (default: false)
 
 # eg: ./scripts/find-bad-rows.sh -i eth.state_cids.csv -c 8 -o res.txt -d true
 # output: 1 9 1500000,xxxxxxxx,0x83952d392f9b0059eea94b10d1a095eefb1943ea91595a16c6698757127d4e1c,,
@@ -30,7 +30,7 @@ if [ "${data}" = true ] ; then
   else
     awk -F"," "NF!=${expectedColumns} {print NR, NF, \$0}" < ${inputFile} > ${outputFile}
   fi
-# else, dump only row number with number of columns
+# else, dump only row number, number of columns
 else
   if [ -z "${outputFile}" ]; then
     awk -F"," "NF!=${expectedColumns} {print NR, NF}" < ${inputFile}

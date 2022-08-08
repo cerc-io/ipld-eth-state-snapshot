@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # flags
-# -i <input-file>:        Input data file
-# -c <expected-columns>:  Expected number of columns in each row in the input file
-# -o [output-file]:       Output destination file
+# -i <input-file>:        Input data file path
+# -c <expected-columns>:  Expected number of columns in each row of the input file
+# -o [output-file]:       Output destination file path
 
 # eg: ./scripts/delete-bad-rows.sh -i eth.state_cids.csv -c 8 -o cleaned-eth.state_cids.csv
 
