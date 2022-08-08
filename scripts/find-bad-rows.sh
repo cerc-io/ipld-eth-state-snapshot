@@ -6,7 +6,7 @@
 # -o [output-file]:       Output destination file (default: STDOUT)
 # -d [true | false]:      Whether to include the data row in output (default: false)
 
-# eg: ./scripts/find-bad-data.sh -i eth.state_cids.csv -c 8 -o res.txt -d true
+# eg: ./scripts/find-bad-rows.sh -i eth.state_cids.csv -c 8 -o res.txt -d true
 # output: 1 9 1500000,xxxxxxxx,0x83952d392f9b0059eea94b10d1a095eefb1943ea91595a16c6698757127d4e1c,,
 #         baglacgzasvqcntdahkxhufdnkm7a22s2eetj6mx6nzkarwxtkvy4x3bubdgq,\x0f,0,f,/blocks/,
 #         DMQJKYBGZRQDVLT2CRWVGPQNNJNCCJU7GL7G4VAI3LZVK4OL5Q2ARTI
@@ -20,6 +20,8 @@ do
     d) data=${OPTARG};;
   esac
 done
+
+timestamp=$(date +%s)
 
 # if data requested, dump row number, number of columns and the row
 if [ "${data}" = true ] ; then
@@ -36,3 +38,6 @@ else
     awk -F"," "NF!=${expectedColumns} {print NR, NF}" < ${inputFile} > ${outputFile}
   fi
 fi
+
+difference=$(($(date +%s)-timestamp))
+echo Time taken: $(date -d@${difference} -u +%H:%M:%S)
