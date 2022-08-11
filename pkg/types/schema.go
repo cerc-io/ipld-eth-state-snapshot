@@ -34,14 +34,14 @@ var TableHeader = Table{
 		{"state_root", varchar},
 		{"tx_root", varchar},
 		{"receipt_root", varchar},
-		{"uncle_root", varchar},
+		{"uncles_hash", varchar},
 		{"bloom", bytea},
 		{"timestamp", numeric},
 		{"mh_key", text},
 		{"times_validated", integer},
 		{"coinbase", varchar},
 	},
-	"ON CONFLICT (block_hash, block_number) DO UPDATE SET (parent_hash, cid, td, node_id, reward, state_root, tx_root, receipt_root, uncle_root, bloom, timestamp, mh_key, times_validated, coinbase) = (EXCLUDED.parent_hash, EXCLUDED.cid, EXCLUDED.td, EXCLUDED.node_id, EXCLUDED.reward, EXCLUDED.state_root, EXCLUDED.tx_root, EXCLUDED.receipt_root, EXCLUDED.uncle_root, EXCLUDED.bloom, EXCLUDED.timestamp, EXCLUDED.mh_key, eth.header_cids.times_validated + 1, EXCLUDED.coinbase)",
+	"ON CONFLICT (block_hash, block_number) DO UPDATE SET (parent_hash, cid, td, node_id, reward, state_root, tx_root, receipt_root, uncles_hash, bloom, timestamp, mh_key, times_validated, coinbase) = (EXCLUDED.parent_hash, EXCLUDED.cid, EXCLUDED.td, EXCLUDED.node_id, EXCLUDED.reward, EXCLUDED.state_root, EXCLUDED.tx_root, EXCLUDED.receipt_root, EXCLUDED.uncles_hash, EXCLUDED.bloom, EXCLUDED.timestamp, EXCLUDED.mh_key, eth.header_cids.times_validated + 1, EXCLUDED.coinbase)",
 }
 
 var TableStateNode = Table{
