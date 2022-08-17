@@ -203,7 +203,7 @@ Config format:
 * Run the following command to select rows (from data dumps in `file` mode) other than the ones having unexpected number of columns:
 
     ```bash
-    ./scripts/delete-bad-rows.sh -i <input-file> -c <expected-columns> -o <output-file>
+    ./scripts/filter-bad-rows.sh -i <input-file> -c <expected-columns> -o <output-file>
     ```
 
 * See [scripts](./scripts) for more details.
