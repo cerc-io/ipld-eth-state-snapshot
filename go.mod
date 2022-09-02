@@ -3,7 +3,7 @@ module github.com/vulcanize/ipld-eth-state-snapshot
 go 1.18
 
 require (
-	github.com/ethereum/go-ethereum v1.10.21
+	github.com/ethereum/go-ethereum v1.10.23
 	github.com/golang/mock v1.6.0
 	github.com/ipfs/go-cid v0.2.0
 	github.com/ipfs/go-ipfs-blockstore v1.2.0
@@ -24,6 +24,7 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/georgysavva/scany v0.2.9 // indirect
@@ -34,6 +35,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
@@ -57,7 +59,7 @@ require (
 	github.com/jackc/puddle v1.2.1 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
-	github.com/lib/pq v1.10.2 // indirect
+	github.com/lib/pq v1.10.6 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
@@ -97,14 +99,15 @@ require (
 	go.uber.org/goleak v1.1.11 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
-	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.21 => github.com/vulcanize/go-ethereum v1.10.21-statediff-4.1.2-alpha
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/vulcanize/go-ethereum v1.10.23-statediff-4.2.0-alpha
