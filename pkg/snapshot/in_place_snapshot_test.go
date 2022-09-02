@@ -21,10 +21,10 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/models"
+	"github.com/ethereum/go-ethereum/statediff/indexer/test_helpers"
 	"github.com/multiformats/go-multihash"
 
 	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
@@ -82,7 +82,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	test.NoError(t, err)
 	db := postgres.NewPostgresDB(driver)
 
-	sql.TearDownDB(t, db)
+	test_helpers.TearDownDB(t, db)
 
 	_ = writeData(t, db)
 
