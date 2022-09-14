@@ -27,10 +27,10 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/test_helpers"
 	"github.com/multiformats/go-multihash"
 
-	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/pg"
-	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
-	"github.com/vulcanize/ipld-eth-state-snapshot/test"
+	fixt "github.com/cerc-io/ipld-eth-state-snapshot/fixture"
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/pg"
+	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
+	"github.com/cerc-io/ipld-eth-state-snapshot/test"
 )
 
 var (

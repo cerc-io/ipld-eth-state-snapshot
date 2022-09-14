@@ -1,4 +1,4 @@
-module github.com/vulcanize/ipld-eth-state-snapshot
+module github.com/cerc-io/ipld-eth-state-snapshot
 
 go 1.18
 
@@ -14,7 +14,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.12.0
-	github.com/vulcanize/go-eth-state-node-iterator v1.1.4
+	github.com/cerc-io/go-eth-state-node-iterator v1.1.4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
@@ -110,4 +110,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.23 => github.com/vulcanize/go-ethereum v1.10.23-statediff-4.2.0-alpha
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/cerc-io/go-ethereum v1.10.23-statediff-4.2.0-alpha

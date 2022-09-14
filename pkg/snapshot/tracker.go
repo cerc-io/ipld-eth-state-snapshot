@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	log "github.com/sirupsen/logrus"
 
-	iter "github.com/vulcanize/go-eth-state-node-iterator"
+	iter "github.com/cerc-io/go-eth-state-node-iterator"
 )
 
 type trackedIter struct {

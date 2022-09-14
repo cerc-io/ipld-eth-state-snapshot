@@ -18,7 +18,7 @@ package snapshot
 import (
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
-	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
+	. "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 
 const (
