@@ -16,9 +16,9 @@
 package snapshot
 
 import (
+	. "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
-	. "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 
 const (

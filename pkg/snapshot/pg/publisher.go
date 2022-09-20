@@ -31,12 +31,12 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
+	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
-	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
-	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 
 var _ snapt.Publisher = (*publisher)(nil)

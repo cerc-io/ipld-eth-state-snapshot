@@ -3,6 +3,7 @@ module github.com/cerc-io/ipld-eth-state-snapshot
 go 1.18
 
 require (
+	github.com/cerc-io/go-eth-state-node-iterator v1.1.7
 	github.com/ethereum/go-ethereum v1.10.23
 	github.com/golang/mock v1.6.0
 	github.com/ipfs/go-cid v0.2.0
@@ -14,7 +15,6 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.12.0
-	github.com/cerc-io/go-eth-state-node-iterator v1.1.4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
