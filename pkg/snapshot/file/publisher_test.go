@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
+	"github.com/ethereum/go-ethereum/statediff/indexer/test_helpers"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 
@@ -93,7 +93,7 @@ func TestPgCopy(t *testing.T) {
 	test.NoError(t, err)
 	db := postgres.NewPostgresDB(driver)
 
-	sql.TearDownDB(t, db)
+	test_helpers.TearDownDB(t, db)
 
 	// copy from files
 	pgCopyStatement := `COPY %s FROM '%s' CSV`
