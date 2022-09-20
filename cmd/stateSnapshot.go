@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot"
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot"
 )
 
 // stateSnapshotCmd represents the stateSnapshot command

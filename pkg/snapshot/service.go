@@ -33,9 +33,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	iter "github.com/vulcanize/go-eth-state-node-iterator"
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
-	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
+	iter "github.com/cerc-io/go-eth-state-node-iterator"
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
+	. "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 
 var (

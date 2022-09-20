@@ -75,6 +75,10 @@ github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOF
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
+github.com/cerc-io/go-eth-state-node-iterator v1.1.7 h1:i4zCKkfowJ4aUVpqVyMpOZIbD5WVm/iijhMAPgcLJ44=
+github.com/cerc-io/go-eth-state-node-iterator v1.1.7/go.mod h1:BBh4BetpBoHUbAiKAdatR3ij7IzDlgN9nPzZ7snn/lo=
+github.com/cerc-io/go-ethereum v1.10.23-statediff-4.2.0-alpha h1:Na4mum/Qkw1mRHnq/TIRPIF5exZAEBznVs3G3/YSENo=
+github.com/cerc-io/go-ethereum v1.10.23-statediff-4.2.0-alpha/go.mod h1:lKBVBWksSwBDR/5D9CAxaGQzDPIS3ueWb6idy7X1Shg=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cbYE=
@@ -679,10 +683,6 @@ github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijb
 github.com/urfave/cli v1.22.1 h1:+mkCCcOFKPnCmVYVcURKps1Xe+3zP90gSYGNfRkjoIY=
 github.com/urfave/cli v1.22.1/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
 github.com/urfave/cli/v2 v2.10.2 h1:x3p8awjp/2arX+Nl/G2040AZpOCHS/eMJJ1/a+mye4Y=
-github.com/vulcanize/go-eth-state-node-iterator v1.1.4 h1:2jIbgZ/yxrNZt5zmsXtvUPSxT0sP5k1PR5/O1GN/Ma0=
-github.com/vulcanize/go-eth-state-node-iterator v1.1.4/go.mod h1:kFzlSi7rUB9mJWZf08xIEiiGuXnnUEn48It+WMHzxPc=
-github.com/vulcanize/go-ethereum v1.10.23-statediff-4.2.0-alpha h1:iy1uhdazPIlUJcCu6Kal+hFQiZblTDwSe2i644o167Y=
-github.com/vulcanize/go-ethereum v1.10.23-statediff-4.2.0-alpha/go.mod h1:lKBVBWksSwBDR/5D9CAxaGQzDPIS3ueWb6idy7X1Shg=
 github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc/go.mod h1:bopw91TMyo8J3tvftk8xmU2kPmlrt4nScJQZU2hE5EM=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 h1:bAn7/zixMGCfxrRTfdpNzjtPYqr8smhKouy9mxVdGPU=

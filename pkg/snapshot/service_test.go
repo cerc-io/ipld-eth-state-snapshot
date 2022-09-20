@@ -15,10 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/golang/mock/gomock"
 
-	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
-	mock "github.com/vulcanize/ipld-eth-state-snapshot/mocks/snapshot"
-	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
-	"github.com/vulcanize/ipld-eth-state-snapshot/test"
+	fixt "github.com/cerc-io/ipld-eth-state-snapshot/fixture"
+	mock "github.com/cerc-io/ipld-eth-state-snapshot/mocks/snapshot"
+	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
+	"github.com/cerc-io/ipld-eth-state-snapshot/test"
 )
 
 var (
