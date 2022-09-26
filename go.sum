@@ -75,10 +75,10 @@ github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOF
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
-github.com/cerc-io/go-eth-state-node-iterator v1.1.7 h1:i4zCKkfowJ4aUVpqVyMpOZIbD5WVm/iijhMAPgcLJ44=
-github.com/cerc-io/go-eth-state-node-iterator v1.1.7/go.mod h1:BBh4BetpBoHUbAiKAdatR3ij7IzDlgN9nPzZ7snn/lo=
-github.com/cerc-io/go-ethereum v1.10.23-statediff-4.2.0-alpha h1:Na4mum/Qkw1mRHnq/TIRPIF5exZAEBznVs3G3/YSENo=
-github.com/cerc-io/go-ethereum v1.10.23-statediff-4.2.0-alpha/go.mod h1:lKBVBWksSwBDR/5D9CAxaGQzDPIS3ueWb6idy7X1Shg=
+github.com/cerc-io/go-eth-state-node-iterator v1.1.8 h1:DKXrvxRbWuAJWAAEeEL4IQOf7mKLcwfgwN9IiohzAv0=
+github.com/cerc-io/go-eth-state-node-iterator v1.1.8/go.mod h1:rj+3CZ0Vf9uiS1M0gYzfapMUNZbxpA5HDVyRkiOU6Kc=
+github.com/cerc-io/go-ethereum v1.10.25-statediff-4.2.1-alpha h1:SDzJBohLSNO9sFYXqtwJWuYjg+fxxJ/2IpnHZw4x03o=
+github.com/cerc-io/go-ethereum v1.10.25-statediff-4.2.1-alpha/go.mod h1:lKBVBWksSwBDR/5D9CAxaGQzDPIS3ueWb6idy7X1Shg=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cbYE=
