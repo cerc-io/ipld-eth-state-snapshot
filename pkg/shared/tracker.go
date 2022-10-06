@@ -1,4 +1,4 @@
-package snapshot
+package shared
 
 import (
 	"bytes"
@@ -16,15 +16,15 @@ import (
 	iter "github.com/cerc-io/go-eth-state-node-iterator"
 )
 
-type trackedIter struct {
+type TrackedIter struct {
 	trie.NodeIterator
-	tracker *iteratorTracker
+	tracker *IteratorTracker
 
-	seekedPath []byte // latest path seeked from the tracked iterator
-	endPath    []byte // endPath for the tracked iterator
+	SeekedPath []byte // latest path seeked from the tracked iterator
+	EndPath    []byte // endPath for the tracked iterator
 }
 
-func (it *trackedIter) Next(descend bool) bool {
+func (it *TrackedIter) Next(descend bool) bool {
 	ret := it.NodeIterator.Next(descend)
 
 	if !ret {
@@ -37,27 +37,30 @@ func (it *trackedIter) Next(descend bool) bool {
 	return ret
 }
 
-type iteratorTracker struct {
+// IteratorTracker struct
+type IteratorTracker struct {
 	recoveryFile string
 
-	startChan chan *trackedIter
-	stopChan  chan *trackedIter
-	started   map[*trackedIter]struct{}
-	stopped   []*trackedIter
+	startChan chan *TrackedIter
+	stopChan  chan *TrackedIter
+	started   map[*TrackedIter]struct{}
+	stopped   []*TrackedIter
 	running   bool
 }
 
-func newTracker(file string, buf int) iteratorTracker {
-	return iteratorTracker{
+// NewTracker creates a new IteratorTracker
+func NewTracker(file string, buf int) IteratorTracker {
+	return IteratorTracker{
 		recoveryFile: file,
-		startChan:    make(chan *trackedIter, buf),
-		stopChan:     make(chan *trackedIter, buf),
-		started:      map[*trackedIter]struct{}{},
+		startChan:    make(chan *TrackedIter, buf),
+		stopChan:     make(chan *TrackedIter, buf),
+		started:      map[*TrackedIter]struct{}{},
 		running:      true,
 	}
 }
 
-func (tr *iteratorTracker) captureSignal(cancelCtx context.CancelFunc) {
+// CaptureSignal
+func (tr *IteratorTracker) CaptureSignal(cancelCtx context.CancelFunc) {
 	sigChan := make(chan os.Signal, 1)
 
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -70,8 +73,8 @@ func (tr *iteratorTracker) captureSignal(cancelCtx context.CancelFunc) {
 	}()
 }
 
-// Wraps an iterator in a trackedIter. This should not be called once halts are possible.
-func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (ret *trackedIter) {
+// Tracked wraps an iterator in a TrackedIter. This should not be called once halts are possible.
+func (tr *IteratorTracker) Tracked(it trie.NodeIterator, recoveredPath []byte) (ret *TrackedIter) {
 	// create seeked path of max capacity (65)
 	iterSeekedPath := make([]byte, 0, 65)
 	// intially populate seeked path with the recovered path
@@ -87,18 +90,18 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 		endPath = boundedIter.EndPath
 	}
 
-	ret = &trackedIter{it, tr, iterSeekedPath, endPath}
+	ret = &TrackedIter{it, tr, iterSeekedPath, endPath}
 	tr.startChan <- ret
 	return
 }
 
-// explicitly stops an iterator
-func (tr *iteratorTracker) stopIter(it *trackedIter) {
+// StopIt explicitly stops an iterator
+func (tr *IteratorTracker) StopIt(it *TrackedIter) {
 	tr.stopChan <- it
 }
 
-// dumps iterator path and bounds to a text file so it can be restored later
-func (tr *iteratorTracker) dump() error {
+// Dump dumps iterator path and bounds to a text file so it can be restored later
+func (tr *IteratorTracker) Dump() error {
 	log.Debug("Dumping recovery state to: ", tr.recoveryFile)
 	var rows [][]string
 	for it := range tr.started {
@@ -112,14 +115,14 @@ func (tr *iteratorTracker) dump() error {
 		}
 
 		// if seeked path and iterator path are non-empty, use iterator's path as startpath
-		if !bytes.Equal(it.seekedPath, []byte{}) && !bytes.Equal(it.Path(), []byte{}) {
+		if !bytes.Equal(it.SeekedPath, []byte{}) && !bytes.Equal(it.Path(), []byte{}) {
 			startPath = it.Path()
 		}
 
 		rows = append(rows, []string{
 			fmt.Sprintf("%x", startPath),
 			fmt.Sprintf("%x", endPath),
-			fmt.Sprintf("%x", it.seekedPath),
+			fmt.Sprintf("%x", it.SeekedPath),
 		})
 	}
 
@@ -133,9 +136,9 @@ func (tr *iteratorTracker) dump() error {
 	return out.WriteAll(rows)
 }
 
-// attempts to read iterator state from file
+// Restore attempts to read iterator state from file
 // if file doesn't exist, returns an empty slice with no error
-func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error) {
+func (tr *IteratorTracker) Restore(tree state.Trie) ([]trie.NodeIterator, error) {
 	file, err := os.Open(tr.recoveryFile)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -179,17 +182,18 @@ func (tr *iteratorTracker) restore(tree state.Trie) ([]trie.NodeIterator, error)
 		// (required by HexToKeyBytes())
 		if len(startPath)&0b1 == 1 {
 			// decrement first to avoid skipped nodes
-			decrementPath(startPath)
+			DecrementPath(startPath)
 			startPath = append(startPath, 0)
 		}
 
 		it := iter.NewPrefixBoundIterator(tree.NodeIterator(iter.HexToKeyBytes(startPath)), startPath, endPath)
-		ret = append(ret, tr.tracked(it, recoveredPath))
+		ret = append(ret, tr.Tracked(it, recoveredPath))
 	}
 	return ret, nil
 }
 
-func (tr *iteratorTracker) haltAndDump() error {
+// HaltAndDump
+func (tr *IteratorTracker) HaltAndDump() error {
 	tr.running = false
 
 	// drain any pending iterators
@@ -215,5 +219,5 @@ func (tr *iteratorTracker) haltAndDump() error {
 		return err
 	}
 
-	return tr.dump()
+	return tr.Dump()
 }

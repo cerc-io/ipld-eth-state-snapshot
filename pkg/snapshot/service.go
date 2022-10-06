@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/shared"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -54,7 +56,7 @@ type Service struct {
 	stateDB           state.Database
 	ipfsPublisher     Publisher
 	maxBatchSize      uint
-	tracker           iteratorTracker
+	tracker           shared.IteratorTracker
 	recoveryFile      string
 }
 
@@ -88,7 +90,7 @@ type SnapshotParams struct {
 func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	paths := make([][]byte, 0, len(params.WatchedAddresses))
 	for addr := range params.WatchedAddresses {
-		paths = append(paths, keybytesToHex(crypto.Keccak256(addr.Bytes())))
+		paths = append(paths, shared.KeyBytesToHex(crypto.Keccak256(addr.Bytes())))
 	}
 	s.watchingAddresses = len(paths) > 0
 	// extract header from lvldb and publish to PG-IPFS
@@ -115,12 +117,12 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	headerID := header.Hash().String()
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
-	s.tracker = newTracker(s.recoveryFile, int(params.Workers))
-	s.tracker.captureSignal(cancelCtx)
+	s.tracker = shared.NewTracker(s.recoveryFile, int(params.Workers))
+	s.tracker.CaptureSignal(cancelCtx)
 
 	var iters []trie.NodeIterator
 	// attempt to restore from recovery file if it exists
-	iters, err = s.tracker.restore(tree)
+	iters, err = s.tracker.Restore(tree)
 	if err != nil {
 		log.Errorf("restore error: %s", err.Error())
 		return err
@@ -144,12 +146,12 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		}
 		for i, it := range iters {
 			// recovered path is nil for fresh iterators
-			iters[i] = s.tracker.tracked(it, nil)
+			iters[i] = s.tracker.Tracked(it, nil)
 		}
 	}
 
 	defer func() {
-		err := s.tracker.haltAndDump()
+		err := s.tracker.HaltAndDump()
 		if err != nil {
 			log.Errorf("failed to write recovery file: %v", err)
 		}
@@ -216,16 +218,6 @@ func resolveNode(nodePath []byte, it trie.NodeIterator, trieDB *trie.Database) (
 	}, nil
 }
 
-// validPath checks if a path is prefix to any one of the paths in the given list
-func validPath(currentPath []byte, seekingPaths [][]byte) bool {
-	for _, seekingPath := range seekingPaths {
-		if bytes.HasPrefix(seekingPath, currentPath) {
-			return true
-		}
-	}
-	return false
-}
-
 // createSnapshot performs traversal using the given iterator and indexes the nodes
 // optionally filtering them according to a list of paths
 func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, headerID string, height *big.Int, seekingPaths [][]byte) error {
@@ -252,10 +244,10 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 	// end path for the concurrent iterator
 	var endPath []byte
 
-	if iter, ok := it.(*trackedIter); ok {
-		seekedPath = &iter.seekedPath
+	if iter, ok := it.(*shared.TrackedIter); ok {
+		seekedPath = &iter.SeekedPath
 		recoveredPath = append(recoveredPath, *seekedPath...)
-		endPath = iter.endPath
+		endPath = iter.EndPath
 	} else {
 		return errors.New("untracked iterator")
 	}
@@ -292,7 +284,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 					if err := s.createNodeSnapshot(tx, subTrieIt.Path(), subTrieIt, headerID, height); err != nil {
 						return err
 					}
-					updateSeekedPath(seekedPath, subTrieIt.Path())
+					shared.UpdateSeekedPath(seekedPath, subTrieIt.Path())
 				}
 
 				if ok := subTrieIt.Next(true); !ok {
@@ -308,12 +300,12 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			// required to avoid processing duplicate nodes:
 			//   if a node is considered more than once,
 			//   it's whole subtrie is re-processed giving large number of duplicate nodoes
-			if !checkUpperPathBound(nodePath, endPath) {
+			if !shared.CheckUpperPathBound(nodePath, endPath) {
 				// fmt.Println("failed checkUpperPathBound", nodePath, endPath)
 				// explicitly stop the iterator in tracker if upper bound check fails
 				// required since it won't be marked as stopped if further nodes are still available
-				if trackedSubtrieIt, ok := subTrieIt.(*trackedIter); ok {
-					s.tracker.stopIter(trackedSubtrieIt)
+				if trackedSubtrieIt, ok := subTrieIt.(*shared.TrackedIter); ok {
+					s.tracker.StopIt(trackedSubtrieIt)
 				}
 				return subTrieIt.Error()
 			}
@@ -329,10 +321,10 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 			}
 
 			// ignore node if it is not along paths of interest
-			if s.watchingAddresses && !validPath(nodePath, seekingPaths) {
+			if s.watchingAddresses && !shared.ValidPath(nodePath, seekingPaths) {
 				// consider this node as processed since it is getting ignored
 				// and update the seeked path
-				updateSeekedPath(seekedPath, nodePath)
+				shared.UpdateSeekedPath(seekedPath, nodePath)
 				// move on to the next node
 				continue
 			}
@@ -343,7 +335,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 				return err
 			}
 			// update seeked path after node has been processed
-			updateSeekedPath(seekedPath, nodePath)
+			shared.UpdateSeekedPath(seekedPath, nodePath)
 
 			// create an iterator to traverse and process the next level of this subTrie
 			nextSubTrieIt, err := s.createSubTrieIt(nodePath, subTrieIt.Hash(), recoveredPath)
@@ -374,7 +366,7 @@ func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recovered
 		// (required by HexToKeyBytes())
 		if len(startPath)&0b1 == 1 {
 			// decrement first to avoid skipped nodes
-			decrementPath(startPath)
+			shared.DecrementPath(startPath)
 			startPath = append(startPath, 0)
 		}
 	}
