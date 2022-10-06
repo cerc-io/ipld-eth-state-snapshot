@@ -2,7 +2,7 @@
 
 > Tool for extracting the entire Ethereum state at a particular block height from leveldb into Postgres-backed IPFS
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/vulcanize/ipld-eth-state-snapshot)](https://goreportcard.com/report/github.com/vulcanize/ipld-eth-state-snapshot)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cerc-io/ipld-eth-state-snapshot)](https://goreportcard.com/report/github.com/cerc-io/ipld-eth-state-snapshot)
 
 ## Setup
 
