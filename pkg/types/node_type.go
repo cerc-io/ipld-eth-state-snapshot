@@ -23,17 +23,17 @@ import (
 
 // node for holding trie node information
 type Node struct {
-	NodeType nodeType
+	NodeType NodeType
 	Path     []byte
 	Key      common.Hash
 	Value    []byte
 }
 
-// nodeType for explicitly setting type of node
-type nodeType int
+// NodeType for explicitly setting type of node
+type NodeType int
 
 const (
-	Branch nodeType = iota
+	Branch NodeType = iota
 	Extension
 	Leaf
 	Removed
@@ -41,7 +41,7 @@ const (
 )
 
 // CheckKeyType checks what type of key we have
-func CheckKeyType(elements []interface{}) (nodeType, error) {
+func CheckKeyType(elements []interface{}) (NodeType, error) {
 	if len(elements) > 2 {
 		return Branch, nil
 	}
