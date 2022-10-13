@@ -24,7 +24,7 @@ type column struct {
 type Table struct {
 	Name           string
 	Columns        []column
-	conflictClause string
+	ConflictClause string
 }
 
 func (tbl *Table) ToCsvRow(args ...interface{}) []string {
@@ -43,7 +43,7 @@ func (tbl *Table) ToInsertStatement() string {
 	}
 	return fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES (%s) %s",
-		tbl.Name, strings.Join(colnames, ", "), strings.Join(placeholders, ", "), tbl.conflictClause,
+		tbl.Name, strings.Join(colnames, ", "), strings.Join(placeholders, ", "), tbl.ConflictClause,
 	)
 }
 
