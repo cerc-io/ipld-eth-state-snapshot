@@ -3,8 +3,8 @@ module github.com/cerc-io/ipld-eth-state-snapshot
 go 1.18
 
 require (
-	github.com/cerc-io/go-eth-state-node-iterator v1.1.8
-	github.com/ethereum/go-ethereum v1.10.25
+	github.com/cerc-io/go-eth-state-node-iterator v1.1.9
+	github.com/ethereum/go-ethereum v1.10.26
 	github.com/golang/mock v1.6.0
 	github.com/ipfs/go-cid v0.2.0
 	github.com/ipfs/go-ipfs-blockstore v1.2.0
@@ -110,4 +110,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.25 => github.com/cerc-io/go-ethereum v1.10.25-statediff-4.2.1-alpha
+replace github.com/ethereum/go-ethereum v1.10.26 => github.com/cerc-io/go-ethereum v1.10.26-statediff-4.2.2-alpha
