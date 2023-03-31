@@ -23,7 +23,7 @@ func NewPublisher(mode SnapshotMode, config *Config) (snapt.Publisher, error) {
 
 		prom.RegisterDBCollector(config.DB.ConnConfig.DatabaseName, driver)
 
-		return pg.NewPublisher(postgres.NewPostgresDB(driver)), nil
+		return pg.NewPublisher(postgres.NewPostgresDB(driver, false)), nil
 	case FileSnapshot:
 		return file.NewPublisher(config.File.OutputDir, config.Eth.NodeInfo)
 	}
