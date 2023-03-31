@@ -19,12 +19,12 @@ package prom
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
+	mets "github.com/ethereum/go-ethereum/statediff/indexer/database/metrics"
 )
 
 // DBStatsGetter is an interface that gets sql.DBStats.
 type DBStatsGetter interface {
-	Stats() sql.Stats
+	Stats() mets.DbStats
 }
 
 // DBStatsCollector implements the prometheus.Collector interface.

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/statediff/indexer/test_helpers"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
+	"github.com/ethereum/go-ethereum/statediff/indexer/test_helpers"
 
 	fixt "github.com/cerc-io/ipld-eth-state-snapshot/fixture"
 	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
@@ -91,7 +91,7 @@ func TestPgCopy(t *testing.T) {
 	ctx := context.Background()
 	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
 	test.NoError(t, err)
-	db := postgres.NewPostgresDB(driver)
+	db := postgres.NewPostgresDB(driver, false)
 
 	test_helpers.TearDownDB(t, db)
 

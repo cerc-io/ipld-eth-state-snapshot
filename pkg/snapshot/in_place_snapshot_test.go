@@ -80,7 +80,7 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	ctx := context.Background()
 	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
 	test.NoError(t, err)
-	db := postgres.NewPostgresDB(driver)
+	db := postgres.NewPostgresDB(driver, false)
 
 	test_helpers.TearDownDB(t, db)
 
