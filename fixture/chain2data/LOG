@@ -1,0 +1,15 @@
+=============== Mar 31, 2023 (CDT) ===============
+12:22:01.281499 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+12:22:01.281586 table@recovery F·2
+12:22:01.281592 table@recovery recovering @2
+12:22:01.281901 table@recovery recovered @2 Gk·13 Ck·0 Cb·0 S·918 Q·13
+12:22:01.281909 table@recovery recovering @4
+12:22:01.282725 table@recovery recovered @4 Gk·416 Ck·0 Cb·0 S·35872 Q·430
+12:22:01.282737 table@recovery recovered F·2 N·429 Gk·429 Ck·0 Q·430
+12:22:01.298688 version@stat F·[2] S·35KiB[35KiB] Sc·[0.50]
+12:22:01.308338 db@open opening
+12:22:01.308738 version@stat F·[2] S·35KiB[35KiB] Sc·[0.50]
+12:22:01.314746 db@janitor F·4 G·0
+12:22:01.314778 db@open done T·6.427167ms
+12:22:01.317510 db@close closing
+12:22:01.317545 db@close done T·34.833µs
