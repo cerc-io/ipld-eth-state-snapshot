@@ -18,13 +18,12 @@ package pg
 import (
 	"context"
 	"math/big"
+	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/statediff/indexer/models"
-	"github.com/lib/pq"
-
 	"github.com/ipfs/go-cid"
+	"github.com/lib/pq"
 	"github.com/multiformats/go-multihash"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -34,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
+	"github.com/ethereum/go-ethereum/statediff/indexer/models"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared/schema"
 
 	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
@@ -90,15 +90,14 @@ func (p *publisher) BeginTx() (snapt.Tx, error) {
 }
 
 // PublishRaw derives a cid from raw bytes and provided codec and multihash type, and writes it to the db tx
-// returns the CID and blockstore prefixed multihash key
-func (tx pubTx) publishRaw(codec uint64, raw []byte, height *big.Int) (cid, prefixedKey string, err error) {
+// returns the CID
+func (tx pubTx) publishRaw(codec uint64, raw []byte, height *big.Int) (cid string, err error) {
 	c, err := ipld.RawdataToCid(codec, raw, multihash.KECCAK_256)
 	if err != nil {
 		return
 	}
 	cid = c.String()
-	prefixedKey, err = tx.publishIPLD(c, raw, height)
-	return
+	return tx.publishIPLD(c, raw, height)
 }
 
 func (tx pubTx) publishIPLD(c cid.Cid, raw []byte, height *big.Int) (string, error) {
@@ -135,10 +134,21 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 		return err
 	}
 
-	_, err = tx.Exec(schema.TableHeader.ToInsertStatement(false), header.Number.Uint64(), header.Hash().Hex(),
-		header.ParentHash.Hex(), headerNode.Cid().String(), "0", pq.StringArray([]string{p.db.NodeID()}), "0",
-		header.Root.Hex(), header.TxHash.Hex(), header.ReceiptHash.Hex(), header.UncleHash.Hex(),
-		header.Bloom.Bytes(), header.Time, header.Coinbase.String())
+	_, err = tx.Exec(schema.TableHeader.ToInsertStatement(false),
+		header.Number.Uint64(),
+		header.Hash().Hex(),
+		header.ParentHash.Hex(),
+		headerNode.Cid().String(),
+		"0",
+		pq.StringArray([]string{p.db.NodeID()}),
+		"0",
+		header.Root.Hex(),
+		header.TxHash.Hex(),
+		header.ReceiptHash.Hex(),
+		header.UncleHash.Hex(),
+		header.Bloom.Bytes(),
+		strconv.FormatUint(header.Time, 10),
+		header.Coinbase.String())
 	return err
 }
 
@@ -155,7 +165,7 @@ func (p *publisher) PublishStateLeafNode(stateNode *models.StateNodeModel, snapT
 		stateNode.Nonce,
 		stateNode.CodeHash,
 		stateNode.StorageRoot,
-		stateNode.Removed)
+		false)
 	if err != nil {
 		return err
 	}
@@ -179,7 +189,7 @@ func (p *publisher) PublishStorageLeafNode(storageNode *models.StorageNodeModel,
 		storageNode.CID,
 		true,
 		storageNode.Value,
-		storageNode.Removed)
+		false)
 	if err != nil {
 		return err
 	}
