@@ -7,10 +7,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
-	file "github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/file"
-	pg "github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/pg"
-	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
+	file "github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/file"
+	pg "github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/pg"
+	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 
 func NewPublisher(mode SnapshotMode, config *Config) (snapt.Publisher, error) {
@@ -23,7 +23,7 @@ func NewPublisher(mode SnapshotMode, config *Config) (snapt.Publisher, error) {
 
 		prom.RegisterDBCollector(config.DB.ConnConfig.DatabaseName, driver)
 
-		return pg.NewPublisher(postgres.NewPostgresDB(driver)), nil
+		return pg.NewPublisher(postgres.NewPostgresDB(driver, false)), nil
 	case FileSnapshot:
 		return file.NewPublisher(config.File.OutputDir, config.Eth.NodeInfo)
 	}

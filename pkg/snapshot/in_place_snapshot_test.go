@@ -21,16 +21,16 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/models"
+	"github.com/ethereum/go-ethereum/statediff/indexer/test_helpers"
 	"github.com/multiformats/go-multihash"
 
-	fixt "github.com/vulcanize/ipld-eth-state-snapshot/fixture"
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/snapshot/pg"
-	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
-	"github.com/vulcanize/ipld-eth-state-snapshot/test"
+	fixt "github.com/cerc-io/ipld-eth-state-snapshot/fixture"
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/pg"
+	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
+	"github.com/cerc-io/ipld-eth-state-snapshot/test"
 )
 
 var (
@@ -80,9 +80,9 @@ func TestCreateInPlaceSnapshot(t *testing.T) {
 	ctx := context.Background()
 	driver, err := postgres.NewSQLXDriver(ctx, pgConfig, nodeInfo)
 	test.NoError(t, err)
-	db := postgres.NewPostgresDB(driver)
+	db := postgres.NewPostgresDB(driver, false)
 
-	sql.TearDownDB(t, db)
+	test_helpers.TearDownDB(t, db)
 
 	_ = writeData(t, db)
 

@@ -11,9 +11,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/trie"
+	iter "github.com/ethereum/go-ethereum/trie/concurrent_iterator"
 	log "github.com/sirupsen/logrus"
-
-	iter "github.com/vulcanize/go-eth-state-node-iterator"
 )
 
 type trackedIter struct {

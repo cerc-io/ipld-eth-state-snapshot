@@ -30,12 +30,12 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	iter "github.com/ethereum/go-ethereum/trie/concurrent_iterator"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	iter "github.com/vulcanize/go-eth-state-node-iterator"
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
-	. "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
+	. "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 
 var (
@@ -59,9 +59,8 @@ type Service struct {
 }
 
 func NewLevelDB(con *EthConfig) (ethdb.Database, error) {
-	edb, err := rawdb.NewLevelDBDatabaseWithFreezer(
-		con.LevelDBPath, 1024, 256, con.AncientDBPath, "ipld-eth-state-snapshot", true,
-	)
+	kvdb, _ := rawdb.NewLevelDBDatabase(con.LevelDBPath, 1024, 256, "ipld-eth-state-snapshot", true)
+	edb, err := rawdb.NewDatabaseWithFreezer(kvdb, con.AncientDBPath, "ipld-eth-state-snapshot", true)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create NewLevelDBDatabaseWithFreezer: %s", err)
 	}

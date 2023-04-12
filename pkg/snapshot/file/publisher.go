@@ -32,11 +32,11 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/sirupsen/logrus"
 
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
+	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	nodeinfo "github.com/ethereum/go-ethereum/statediff/indexer/node"
 	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
-	"github.com/vulcanize/ipld-eth-state-snapshot/pkg/prom"
-	snapt "github.com/vulcanize/ipld-eth-state-snapshot/pkg/types"
 )
 
 var _ snapt.Publisher = (*publisher)(nil)
