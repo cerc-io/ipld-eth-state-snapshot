@@ -9,7 +9,7 @@ import (
 
 	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
 	file "github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/file"
-	pg "github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/pg"
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/pg"
 	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 

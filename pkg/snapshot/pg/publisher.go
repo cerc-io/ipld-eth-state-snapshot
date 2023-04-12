@@ -160,7 +160,7 @@ func (p *publisher) PublishStateLeafNode(stateNode *models.StateNodeModel, snapT
 		stateNode.HeaderID,
 		stateNode.StateKey,
 		stateNode.CID,
-		true,
+		false,
 		stateNode.Balance,
 		stateNode.Nonce,
 		stateNode.CodeHash,
@@ -187,7 +187,7 @@ func (p *publisher) PublishStorageLeafNode(storageNode *models.StorageNodeModel,
 		storageNode.StateKey,
 		storageNode.StorageKey,
 		storageNode.CID,
-		true,
+		false,
 		storageNode.Value,
 		false)
 	if err != nil {

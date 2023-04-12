@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/statediff/indexer/shared/schema"
+
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/test_helpers"
 
 	fixt "github.com/cerc-io/ipld-eth-state-snapshot/fixture"
-	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 	"github.com/cerc-io/ipld-eth-state-snapshot/test"
 )
 
@@ -22,12 +23,12 @@ var (
 	pgConfig = test.DefaultPgConfig
 	nodeInfo = test.DefaultNodeInfo
 	// tables ordered according to fkey depedencies
-	allTables = []*snapt.Table{
-		&snapt.TableIPLDBlock,
-		&snapt.TableNodeInfo,
-		&snapt.TableHeader,
-		&snapt.TableStateNode,
-		&snapt.TableStorageNode,
+	allTables = []*schema.Table{
+		&schema.TableIPLDBlock,
+		&schema.TableNodeInfo,
+		&schema.TableHeader,
+		&schema.TableStateNode,
+		&schema.TableStorageNode,
 	}
 )
 
@@ -39,7 +40,7 @@ func writeFiles(t *testing.T, dir string) *publisher {
 	test.NoError(t, err)
 
 	headerID := fixt.Block1_Header.Hash().String()
-	test.NoError(t, pub.PublishStateNode(&fixt.Block1_StateNode0, headerID, fixt.Block1_Header.Number, tx))
+	test.NoError(t, pub.PublishStateLeafNode(&fixt.Block1_StateNode0, headerID, fixt.Block1_Header.Number, tx))
 
 	test.NoError(t, tx.Commit())
 	return pub
@@ -47,7 +48,7 @@ func writeFiles(t *testing.T, dir string) *publisher {
 
 // verify that we can parse the csvs
 // TODO check actual data
-func verifyFileData(t *testing.T, path string, tbl *snapt.Table) {
+func verifyFileData(t *testing.T, path string, tbl *schema.Table) {
 	file, err := os.Open(path)
 	test.NoError(t, err)
 	r := csv.NewReader(file)
