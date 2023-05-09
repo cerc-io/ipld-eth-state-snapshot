@@ -91,6 +91,7 @@ func NewInPlaceSnapshotConfig() *Config {
 
 // Init Initialises config
 func (c *Config) Init(mode SnapshotMode) error {
+	viper.BindEnv(LOGRUS_FILE_TOML, LOGRUS_FILE)
 	viper.BindEnv(ETH_NODE_ID_TOML, ETH_NODE_ID)
 	viper.BindEnv(ETH_CLIENT_NAME_TOML, ETH_CLIENT_NAME)
 	viper.BindEnv(ETH_GENESIS_BLOCK_TOML, ETH_GENESIS_BLOCK)
@@ -159,6 +160,12 @@ func (c *FileConfig) Init() error {
 }
 
 func (c *ServiceConfig) Init() error {
+	viper.BindEnv(SNAPSHOT_BLOCK_HEIGHT_TOML, SNAPSHOT_BLOCK_HEIGHT)
+	viper.BindEnv(SNAPSHOT_START_HEIGHT_TOML, SNAPSHOT_START_HEIGHT)
+	viper.BindEnv(SNAPSHOT_END_HEIGHT_TOML, SNAPSHOT_END_HEIGHT)
+	viper.BindEnv(SNAPSHOT_MODE_TOML, SNAPSHOT_MODE)
+	viper.BindEnv(SNAPSHOT_WORKERS_TOML, SNAPSHOT_WORKERS)
+
 	viper.BindEnv(SNAPSHOT_ACCOUNTS_TOML, SNAPSHOT_ACCOUNTS)
 	var allowedAccounts []string
 	viper.UnmarshalKey(SNAPSHOT_ACCOUNTS_TOML, &allowedAccounts)
