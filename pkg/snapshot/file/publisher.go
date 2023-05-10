@@ -28,10 +28,8 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/ipfs/go-cid"
-	"github.com/multiformats/go-multihash"
 	"github.com/sirupsen/logrus"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
 	"github.com/ethereum/go-ethereum/statediff/indexer/models"
@@ -162,23 +160,12 @@ func (p *publisher) BeginTx() (snapt.Tx, error) {
 	return fileTx{writers}, nil
 }
 
-// PublishRaw derives a cid from raw bytes and provided codec and multihash type, and writes it to the db tx
-// returns the CID
-func (tx fileWriters) publishRaw(codec uint64, raw []byte, height *big.Int) (cid string, err error) {
-	c, err := ipld.RawdataToCid(codec, raw, multihash.KECCAK_256)
-	if err != nil {
-		return
-	}
-	cid = c.String()
-	return tx.publishIPLD(c, raw, height)
-}
-
-func (tx fileWriters) publishIPLD(c cid.Cid, raw []byte, height *big.Int) (string, error) {
-	return c.String(), tx.write(&schema.TableIPLDBlock, height.String(), c.String(), raw)
+func (tx fileWriters) publishIPLD(c cid.Cid, raw []byte, height *big.Int) error {
+	return tx.write(&schema.TableIPLDBlock, height.String(), c.String(), raw)
 }
 
 // PublishIPLD writes an IPLD to the ipld.blocks blockstore
-func (p *publisher) PublishIPLD(c cid.Cid, raw []byte, height *big.Int, snapTx snapt.Tx) (string, error) {
+func (p *publisher) PublishIPLD(c cid.Cid, raw []byte, height *big.Int, snapTx snapt.Tx) error {
 	tx := snapTx.(fileTx)
 	return tx.publishIPLD(c, raw, height)
 }
@@ -190,7 +177,7 @@ func (p *publisher) PublishHeader(header *types.Header) error {
 	if err != nil {
 		return err
 	}
-	if _, err = p.writers.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
+	if err := p.writers.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
 		return err
 	}
 
@@ -269,22 +256,6 @@ func (p *publisher) PublishStorageLeafNode(storageNode *models.StorageNodeModel,
 
 	// increment current batch size counter
 	p.currBatchSize += 2
-	return nil
-}
-
-// PublishCode writes code to the ipfs backing pg datastore
-func (p *publisher) PublishCode(height *big.Int, codeHash common.Hash, codeBytes []byte, snapTx snapt.Tx) error {
-	c := ipld.Keccak256ToCid(ipld.RawBinary, codeHash.Bytes())
-
-	tx := snapTx.(fileTx)
-	if _, err := tx.publishIPLD(c, codeBytes, height); err != nil {
-		return err
-	}
-	// increment code node counter.
-	atomic.AddUint64(&p.codeNodeCounter, 1)
-	prom.IncCodeNodeCount()
-
-	p.currBatchSize++
 	return nil
 }
 

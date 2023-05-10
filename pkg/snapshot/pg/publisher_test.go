@@ -33,9 +33,7 @@ func writeData(t *testing.T, db *postgres.DB) *publisher {
 	tx, err := pub.BeginTx()
 	test.NoError(t, err)
 
-	headerID := fixt.Block1_Header.Hash().String()
-	stateNode := &fixt.Block1_StateNode0
-	test.NoError(t, pub.PublishStateLeafNode(&fixt.Block1_StateNode0, headerID, fixt.Block1_Header.Number, tx))
+	test.NoError(t, pub.PublishStateLeafNode(&fixt.Block1_StateNode0, tx))
 
 	test.NoError(t, tx.Commit())
 	return pub
