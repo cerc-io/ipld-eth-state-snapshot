@@ -219,10 +219,10 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 	// end path for the concurrent iterator
 	var endPath []byte
 
-	if iter, ok := it.(*trackedIter); ok {
-		seekedPath = &iter.seekedPath
+	if i, ok := it.(*trackedIter); ok {
+		seekedPath = &i.seekedPath
 		recoveredPath = append(recoveredPath, *seekedPath...)
-		endPath = iter.endPath
+		endPath = i.endPath
 	} else {
 		return errors.New("untracked iterator")
 	}
@@ -257,7 +257,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 				// if node path is empty and prefix is nil, it's the root node
 				if prefixPath == nil {
 					// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-					if err := s.createNodeSnapshot(tx, subTrieIt, headerID, height, seekingPaths); err != nil {
+					if err := s.createNodeSnapshot(tx, subTrieIt, headerID, height, seekingPaths, prefixPath); err != nil {
 						return err
 					}
 					updateSeekedPath(seekedPath, subTrieIt.Path())
@@ -307,7 +307,7 @@ func (s *Service) createSubTrieSnapshot(ctx context.Context, tx Tx, prefixPath [
 
 			// if the node is along paths of interest
 			// create snapshot of node, if it is a leaf this will also create snapshot of entire storage trie
-			if err := s.createNodeSnapshot(tx, subTrieIt, headerID, height, seekingPaths); err != nil {
+			if err := s.createNodeSnapshot(tx, subTrieIt, headerID, height, seekingPaths, prefixPath); err != nil {
 				return err
 			}
 			// update seeked path after node has been processed
@@ -358,7 +358,8 @@ func (s *Service) createSubTrieIt(prefixPath []byte, hash common.Hash, recovered
 
 // createNodeSnapshot indexes the current node
 // entire storage trie is also indexed (if available)
-func (s *Service) createNodeSnapshot(tx Tx, it trie.NodeIterator, headerID string, height *big.Int, watchedAddressesLeafPaths [][]byte) error {
+func (s *Service) createNodeSnapshot(tx Tx, it trie.NodeIterator, headerID string, height *big.Int,
+	watchedAddressesLeafPaths [][]byte, prefixPath []byte) error {
 	tx, err := s.ipfsPublisher.PrepareTxForBatch(tx, s.maxBatchSize)
 	if err != nil {
 		return err
@@ -369,7 +370,7 @@ func (s *Service) createNodeSnapshot(tx Tx, it trie.NodeIterator, headerID strin
 		// if it is a "value" node, we will index the value by leaf key
 		// publish codehash => code mappings
 		// take storage snapshot
-		if err := s.processStateValueNode(it, headerID, height, watchedAddressesLeafPaths, tx); err != nil {
+		if err := s.processStateValueNode(it, headerID, height, prefixPath, watchedAddressesLeafPaths, tx); err != nil {
 			return err
 		}
 	} else { // trie nodes will be written to blockstore only
@@ -391,8 +392,8 @@ func (s *Service) createNodeSnapshot(tx Tx, it trie.NodeIterator, headerID strin
 				return err
 			}
 			if ok {
-				nodePath := make([]byte, len(it.Path()))
-				copy(nodePath, it.Path())
+				// create the full node path as it.Path() doesn't include the path before subtrie root
+				nodePath := append(prefixPath, it.Path()...)
 				partialPath := trie.CompactToHex(elements[0].([]byte))
 				valueNodePath := append(nodePath, partialPath...)
 				if !isWatchedAddress(watchedAddressesLeafPaths, valueNodePath) {
@@ -403,7 +404,7 @@ func (s *Service) createNodeSnapshot(tx Tx, it trie.NodeIterator, headerID strin
 		}
 		nodeHash := make([]byte, len(it.Hash().Bytes()))
 		copy(nodeHash, it.Hash().Bytes())
-		if _, err := s.ipfsPublisher.PublishIPLD(ipld.Keccak256ToCid(ipld.MEthStateTrie, nodeHash), nodeVal, height, tx); err != nil {
+		if err := s.ipfsPublisher.PublishIPLD(ipld.Keccak256ToCid(ipld.MEthStateTrie, nodeHash), nodeVal, height, tx); err != nil {
 			return err
 		}
 	}
@@ -412,11 +413,13 @@ func (s *Service) createNodeSnapshot(tx Tx, it trie.NodeIterator, headerID strin
 }
 
 // reminder: it.Leaf() == true when the iterator is positioned at a "value node" which is not something that actually exists in an MMPT
-func (s *Service) processStateValueNode(it trie.NodeIterator, headerID string, height *big.Int,
+func (s *Service) processStateValueNode(it trie.NodeIterator, headerID string, height *big.Int, prefixPath []byte,
 	watchedAddressesLeafPaths [][]byte, tx Tx) error {
+	// create the full node path as it.Path() doesn't include the path before subtrie root
+	nodePath := append(prefixPath, it.Path()...)
 	// skip if it is not a watched address
 	// If we aren't watching any specific addresses, we are watching everything
-	if len(watchedAddressesLeafPaths) > 0 && !isWatchedAddress(watchedAddressesLeafPaths, it.Path()) {
+	if len(watchedAddressesLeafPaths) > 0 && !isWatchedAddress(watchedAddressesLeafPaths, nodePath) {
 		return nil
 	}
 
@@ -428,8 +431,24 @@ func (s *Service) processStateValueNode(it trie.NodeIterator, headerID string, h
 	if err := rlp.DecodeBytes(accountRLP, &account); err != nil {
 		return fmt.Errorf("error decoding account for leaf value at leaf key %x\nerror: %v", it.LeafKey(), err)
 	}
-	leafKey := make([]byte, len(it.LeafKey()))
-	copy(leafKey, it.LeafKey())
+
+	// since this is a "value node", we need to move up to the "parent" node which is the actual leaf node
+	// it should be in the fastcache since it necessarily was recently accessed to reach the current "node"
+	parentNodeRLP, err := s.stateDB.TrieDB().Node(it.Parent())
+	if err != nil {
+		return err
+	}
+	var nodeElements []interface{}
+	if err = rlp.DecodeBytes(parentNodeRLP, &nodeElements); err != nil {
+		return err
+	}
+	parentSubPath := make([]byte, len(it.ParentPath()))
+	copy(parentSubPath, it.ParentPath())
+	parentPath := append(prefixPath, parentSubPath...)
+	partialPath := trie.CompactToHex(nodeElements[0].([]byte))
+	valueNodePath := append(parentPath, partialPath...)
+	encodedPath := trie.HexToCompact(valueNodePath)
+	leafKey := encodedPath[1:]
 
 	// write codehash => code mappings if we have a contract
 	if !bytes.Equal(account.CodeHash, emptyCodeHash) {
@@ -438,17 +457,11 @@ func (s *Service) processStateValueNode(it trie.NodeIterator, headerID string, h
 		if err != nil {
 			return fmt.Errorf("failed to retrieve code for codehash %s\r\n error: %v", codeHash.String(), err)
 		}
-		if _, err := s.ipfsPublisher.PublishIPLD(ipld.Keccak256ToCid(ipld.RawBinary, codeHash.Bytes()), code, height, tx); err != nil {
+		if err := s.ipfsPublisher.PublishIPLD(ipld.Keccak256ToCid(ipld.RawBinary, codeHash.Bytes()), code, height, tx); err != nil {
 			return err
 		}
 	}
 
-	// since this is a "value node", we need to move up to the "parent" node which is the actual leaf node
-	// it should be in the fastcache since it necessarily was recently accessed to reach the current node
-	parentNodeRLP, err := s.stateDB.TrieDB().Node(it.Parent())
-	if err != nil {
-		return err
-	}
 	// publish the state leaf model
 	stateKeyStr := common.BytesToHash(leafKey).String()
 	stateLeafNodeModel := &models.StateNodeModel{
@@ -495,7 +508,7 @@ func (s *Service) storageSnapshot(sr common.Hash, stateKey, headerID string, hei
 			copy(nodeVal, it.NodeBlob())
 			nodeHash := make([]byte, len(it.Hash().Bytes()))
 			copy(nodeHash, it.Hash().Bytes())
-			if _, err := s.ipfsPublisher.PublishIPLD(ipld.Keccak256ToCid(ipld.MEthStorageTrie, nodeHash), nodeVal, height, tx); err != nil {
+			if err := s.ipfsPublisher.PublishIPLD(ipld.Keccak256ToCid(ipld.MEthStorageTrie, nodeHash), nodeVal, height, tx); err != nil {
 				return nil, err
 			}
 		}
