@@ -21,7 +21,7 @@ var (
 	DefaultPgConfig = postgres.Config{
 		Hostname:     "localhost",
 		Port:         8077,
-		DatabaseName: "vulcanize_testing",
+		DatabaseName: "cerc_testing",
 		Username:     "vdbm",
 		Password:     "password",
 
@@ -48,7 +48,7 @@ func NoError(t *testing.T, err error) {
 // ExpectEqual asserts the provided interfaces are deep equal
 func ExpectEqual(t *testing.T, want, got interface{}) {
 	if !reflect.DeepEqual(want, got) {
-		t.Fatalf("Values not equal:\nExpected:\t%v\nActual:\t\t%v", want, got)
+		t.Fatalf("Values not equal:\nExpected:\t%+v\nActual:\t\t%+v", want, got)
 	}
 }
 
