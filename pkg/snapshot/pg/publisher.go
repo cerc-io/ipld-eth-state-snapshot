@@ -17,26 +17,25 @@ package pg
 
 import (
 	"context"
-	"fmt"
 	"math/big"
+	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ipfs/go-cid"
-	blockstore "github.com/ipfs/go-ipfs-blockstore"
-	dshelp "github.com/ipfs/go-ipfs-ds-help"
-	"github.com/multiformats/go-multihash"
+	"github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
-	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql"
 	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 	"github.com/ethereum/go-ethereum/statediff/indexer/ipld"
-	"github.com/ethereum/go-ethereum/statediff/indexer/shared"
+	"github.com/ethereum/go-ethereum/statediff/indexer/models"
+	"github.com/ethereum/go-ethereum/statediff/indexer/shared/schema"
+
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
+	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
 )
 
 var _ snapt.Publisher = (*publisher)(nil)
@@ -88,23 +87,15 @@ func (p *publisher) BeginTx() (snapt.Tx, error) {
 	}}, nil
 }
 
-// PublishRaw derives a cid from raw bytes and provided codec and multihash type, and writes it to the db tx
-// returns the CID and blockstore prefixed multihash key
-func (tx pubTx) publishRaw(codec uint64, raw []byte, height *big.Int) (cid, prefixedKey string, err error) {
-	c, err := ipld.RawdataToCid(codec, raw, multihash.KECCAK_256)
-	if err != nil {
-		return
-	}
-	cid = c.String()
-	prefixedKey, err = tx.publishIPLD(c, raw, height)
-	return
+func (tx pubTx) publishIPLD(c cid.Cid, raw []byte, height *big.Int) error {
+	_, err := tx.Exec(schema.TableIPLDBlock.ToInsertStatement(false), height.Uint64(), c.String(), raw)
+	return err
 }
 
-func (tx pubTx) publishIPLD(c cid.Cid, raw []byte, height *big.Int) (string, error) {
-	dbKey := dshelp.MultihashToDsKey(c.Hash())
-	prefixedKey := blockstore.BlockPrefix.String() + dbKey.String()
-	_, err := tx.Exec(snapt.TableIPLDBlock.ToInsertStatement(), height.Uint64(), prefixedKey, raw)
-	return prefixedKey, err
+// PublishIPLD writes an IPLD to the ipld.blocks blockstore
+func (p *publisher) PublishIPLD(c cid.Cid, raw []byte, height *big.Int, snapTx snapt.Tx) error {
+	tx := snapTx.(pubTx)
+	return tx.publishIPLD(c, raw, height)
 }
 
 // PublishHeader writes the header to the ipfs backing pg datastore and adds secondary indexes in the header_cids table
@@ -126,33 +117,42 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 		}
 	}()
 
-	if _, err = tx.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
+	if err := tx.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
 		return err
 	}
 
-	mhKey := shared.MultihashKeyFromCID(headerNode.Cid())
-	_, err = tx.Exec(snapt.TableHeader.ToInsertStatement(), header.Number.Uint64(), header.Hash().Hex(),
-		header.ParentHash.Hex(), headerNode.Cid().String(), "0", p.db.NodeID(), "0",
-		header.Root.Hex(), header.TxHash.Hex(), header.ReceiptHash.Hex(), header.UncleHash.Hex(),
-		header.Bloom.Bytes(), header.Time, mhKey, 0, header.Coinbase.String())
+	_, err = tx.Exec(schema.TableHeader.ToInsertStatement(false),
+		header.Number.Uint64(),
+		header.Hash().Hex(),
+		header.ParentHash.Hex(),
+		headerNode.Cid().String(),
+		"0",
+		pq.StringArray([]string{p.db.NodeID()}),
+		"0",
+		header.Root.Hex(),
+		header.TxHash.Hex(),
+		header.ReceiptHash.Hex(),
+		header.UncleHash.Hex(),
+		header.Bloom.Bytes(),
+		strconv.FormatUint(header.Time, 10),
+		header.Coinbase.String())
 	return err
 }
 
-// PublishStateNode writes the state node to the ipfs backing datastore and adds secondary indexes in the state_cids table
-func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, height *big.Int, snapTx snapt.Tx) error {
-	var stateKey string
-	if !snapt.IsNullHash(node.Key) {
-		stateKey = node.Key.Hex()
-	}
-
+// PublishStateLeafNode writes the state leaf node to eth.state_cids
+func (p *publisher) PublishStateLeafNode(stateNode *models.StateNodeModel, snapTx snapt.Tx) error {
 	tx := snapTx.(pubTx)
-	stateCIDStr, mhKey, err := tx.publishRaw(ipld.MEthStateTrie, node.Value, height)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec(snapt.TableStateNode.ToInsertStatement(),
-		height.Uint64(), headerID, stateKey, stateCIDStr, node.Path, node.NodeType, false, mhKey)
+	_, err := tx.Exec(schema.TableStateNode.ToInsertStatement(false),
+		stateNode.BlockNumber,
+		stateNode.HeaderID,
+		stateNode.StateKey,
+		stateNode.CID,
+		false,
+		stateNode.Balance,
+		stateNode.Nonce,
+		stateNode.CodeHash,
+		stateNode.StorageRoot,
+		false)
 	if err != nil {
 		return err
 	}
@@ -165,21 +165,18 @@ func (p *publisher) PublishStateNode(node *snapt.Node, headerID string, height *
 	return err
 }
 
-// PublishStorageNode writes the storage node to the ipfs backing pg datastore and adds secondary indexes in the storage_cids table
-func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, height *big.Int, statePath []byte, snapTx snapt.Tx) error {
-	var storageKey string
-	if !snapt.IsNullHash(node.Key) {
-		storageKey = node.Key.Hex()
-	}
-
+// PublishStorageLeafNode writes the storage leaf node to eth.storage_cids
+func (p *publisher) PublishStorageLeafNode(storageNode *models.StorageNodeModel, snapTx snapt.Tx) error {
 	tx := snapTx.(pubTx)
-	storageCIDStr, mhKey, err := tx.publishRaw(ipld.MEthStorageTrie, node.Value, height)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec(snapt.TableStorageNode.ToInsertStatement(),
-		height.Uint64(), headerID, statePath, storageKey, storageCIDStr, node.Path, node.NodeType, false, mhKey)
+	_, err := tx.Exec(schema.TableStorageNode.ToInsertStatement(false),
+		storageNode.BlockNumber,
+		storageNode.HeaderID,
+		storageNode.StateKey,
+		storageNode.StorageKey,
+		storageNode.CID,
+		false,
+		storageNode.Value,
+		false)
 	if err != nil {
 		return err
 	}
@@ -190,27 +187,6 @@ func (p *publisher) PublishStorageNode(node *snapt.Node, headerID string, height
 	// increment current batch size counter
 	p.currBatchSize += 2
 	return err
-}
-
-// PublishCode writes code to the ipfs backing pg datastore
-func (p *publisher) PublishCode(height *big.Int, codeHash common.Hash, codeBytes []byte, snapTx snapt.Tx) error {
-	// no codec for code, doesn't matter though since blockstore key is multihash-derived
-	mhKey, err := shared.MultihashKeyFromKeccak256(codeHash)
-	if err != nil {
-		return fmt.Errorf("error deriving multihash key from codehash: %v", err)
-	}
-
-	tx := snapTx.(pubTx)
-	if _, err = tx.Exec(snapt.TableIPLDBlock.ToInsertStatement(), height.Uint64(), mhKey, codeBytes); err != nil {
-		return fmt.Errorf("error publishing code IPLD: %v", err)
-	}
-
-	// increment code node counter.
-	atomic.AddUint64(&p.codeNodeCounter, 1)
-	prom.IncCodeNodeCount()
-
-	p.currBatchSize++
-	return nil
 }
 
 func (p *publisher) PrepareTxForBatch(tx snapt.Tx, maxBatchSize uint) (snapt.Tx, error) {

@@ -1,12 +1,13 @@
 [database]
-    name     = "vulcanize_public"
+    name     = "cerc_testing"
     hostname = "localhost"
-    port     = 5432
-    user     = "postgres"
+    port     = 8077
+    user     = "vdbm"
+    password = "password"
 
 [leveldb]
-    path = "/Users/iannorden/Library/Ethereum/geth/chaindata"
-    ancient = "/Users/iannorden/Library/Ethereum/geth/chaindata/ancient"
+    path = "/Users/user/go/src/github.com/cerc-io/ipld-eth-state-snapshot/fixture/chain2data"
+    ancient = "/Users/user/go/src/github.com/cerc-io/ipld-eth-state-snapshot/fixture/chain2data/ancient"
 
 [log]
     level = "info"
@@ -22,7 +23,7 @@
 [snapshot]
     mode = "file"
     workers = 4
-    blockHeight = -1
+    blockHeight = 32
     recoveryFile = "recovery_file"
 
     startHeight = 1
