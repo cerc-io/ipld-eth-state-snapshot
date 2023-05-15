@@ -84,12 +84,6 @@ Config format:
             ]
         ```
 
-* For in-place snapshot in the database:
-
-    ```bash
-    ./ipld-eth-state-snapshot inPlaceStateSnapshot --config={path to toml config file}
-    ```
-
 ## Monitoring
 
 * Enable metrics using config parameters `prom.metrics` and `prom.http`.
