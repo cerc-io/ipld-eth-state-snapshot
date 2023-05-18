@@ -3,6 +3,7 @@ package snapshot
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/ipfs/go-cid"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/statediff/indexer/models"
@@ -192,8 +195,6 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 			expectedStorageNodes.Store(keys, value)
 		}
 
-		var count int
-
 		pub, tx := makeMocks(t)
 		pub.EXPECT().PublishHeader(gomock.Eq(&fixt.Chain2_Block32_Header))
 		pub.EXPECT().BeginTx().Return(tx, nil).
@@ -206,7 +207,6 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 			gomock.Any(),
 			gomock.Eq(tx)).
 			Do(func(stateNode *models.StateNodeModel, _ snapt.Tx) error {
-				count++
 				if stateNode.BlockNumber != fixt.Chain2_Block32_Header.Number.String() {
 					t.Fatalf(unexpectedStateNodeErr, stateNode.StateKey)
 				}
@@ -261,7 +261,12 @@ func TestAccountSelectiveSnapshot(t *testing.T) {
 			}).
 			AnyTimes()
 		pub.EXPECT().PublishIPLD(gomock.Any(), gomock.Any(), gomock.Eq(fixt.Chain2_Block32_Header.Number), gomock.Eq(tx)).
-			AnyTimes()
+			Do(func(_ cid.Cid, _ []byte, height *big.Int, _ snapt.Tx) {
+				if height.String() != fixt.Chain2_Block32_Header.Number.String() {
+					t.Fatalf("wrong blockheight for ipld publish: %s", height.String())
+				}
+			}).
+			MaxTimes(len(fixt.Chain2_Block32_StateIPLDs) + len(fixt.Chain2_Block32_StorageIPLDs) + 1 + 2)
 
 		chainDataPath, ancientDataPath := fixt.GetChainDataPath("chain2data")
 		config := testConfig(chainDataPath, ancientDataPath)
@@ -318,6 +323,7 @@ func TestRecovery(t *testing.T) {
 		pub.EXPECT().PublishHeader(gomock.Eq(&fixt.Block1_Header))
 		pub.EXPECT().BeginTx().Return(tx, nil).MaxTimes(workers)
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
+		tx.EXPECT().Rollback().MaxTimes(workers)
 		tx.EXPECT().Commit().MaxTimes(workers)
 		pub.EXPECT().PublishStateLeafNode(
 			gomock.Any(),
@@ -481,7 +487,8 @@ func TestAccountSelectiveRecovery(t *testing.T) {
 		pub.EXPECT().PublishHeader(gomock.Eq(&fixt.Chain2_Block32_Header))
 		pub.EXPECT().BeginTx().Return(tx, nil).Times(workers)
 		pub.EXPECT().PrepareTxForBatch(gomock.Any(), gomock.Any()).Return(tx, nil).AnyTimes()
-		tx.EXPECT().Commit().Times(workers)
+		tx.EXPECT().Commit().MaxTimes(workers)
+		tx.EXPECT().Rollback().MaxTimes(workers)
 		pub.EXPECT().PublishStateLeafNode(
 			gomock.Any(),
 			gomock.Eq(tx)).
