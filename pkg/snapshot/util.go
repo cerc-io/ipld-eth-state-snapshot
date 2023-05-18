@@ -5,12 +5,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
-
 	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
 	file "github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/file"
 	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot/pg"
 	snapt "github.com/cerc-io/ipld-eth-state-snapshot/pkg/types"
+	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
 )
 
 func NewPublisher(mode SnapshotMode, config *Config) (snapt.Publisher, error) {
@@ -51,6 +50,85 @@ func decrementPath(path []byte) bool {
 		}
 	}
 	return true
+}
+
+// Return the distance between two paths.  This is the "distance to go" from start to end and the result is
+// equivalent to counting the number of times decrementPath(end) would need to be called before end <= start.
+// If end is already <= start, the result is 0.
+func pathDistance(start []byte, end []byte) uint64 {
+	// We see paths in several forms, nil, 0600, 06, etc. We need to coerce them into a comparable form.
+	// For nil, start and end mean the extremes of 0x0 and 0x10.  For differences in length, we sometimes see a
+	// start/end range on a bounded iterator specified like 0500:0600, while the value returned by it.Path() may
+	// be shorter, like 06.  For the kind of comparison we are doing here, 06 and 0600 should be treated such
+	// that 05:06 = 0500:0600 = 16.
+	normalizePathRange := func(start []byte, end []byte) ([]byte, []byte) {
+		if 0 == len(start) {
+			start = []byte{0x0}
+		}
+		if 0 == len(end) {
+			end = []byte{0x10}
+		}
+		if len(start) == len(end) {
+			return start, end
+		}
+		maxLen := len(end)
+		if len(start) > len(end) {
+			maxLen = len(start)
+		}
+		normalizedStart := make([]byte, maxLen)
+		normalizedEnd := make([]byte, maxLen)
+		for i := 0; i < maxLen; i++ {
+			if i < len(start) {
+				normalizedStart[i] = start[i]
+			}
+			if i < len(end) {
+				normalizedEnd[i] = end[i]
+			}
+		}
+		return normalizedStart, normalizedEnd
+	}
+
+	// We have no need to handle negative exponents, so uints are fine.
+	pow := func(x uint64, y uint) uint64 {
+		if 0 == y {
+			return 1
+		}
+		ret := x
+		for i := uint(0); i < y; i++ {
+			ret *= x
+		}
+		return x
+	}
+
+	// Fix the paths.
+	start, end = normalizePathRange(start, end)
+
+	// No negative distances, if the start is already >= end, the distance is 0.
+	if bytes.Compare(start, end) >= 0 {
+		return 0
+	}
+
+	// Subtract each component, right to left, carrying over if necessary.
+	difference := make([]byte, len(start))
+	var carry byte = 0
+	for i := len(start) - 1; i >= 0; i-- {
+		result := end[i] - start[i] - carry
+		if result > 0xf && i > 0 {
+			result &= 0xf
+			carry = 1
+		} else {
+			carry = 0
+		}
+		difference[i] = result
+	}
+
+	// Calculate the result.
+	var ret uint64 = 0
+	for i := 0; i < len(difference); i++ {
+		ret += uint64(difference[i]) * pow(16, uint(len(difference)-i-1))
+	}
+
+	return ret
 }
 
 // https://github.com/ethereum/go-ethereum/blob/master/trie/encoding.go#L97
