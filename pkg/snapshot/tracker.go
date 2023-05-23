@@ -128,7 +128,8 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 	tr.startChan <- ret
 
 	if prom.Enabled() {
-		totalDistance := pathDistance(startPath, endPath)
+		pathDepth := max(max(len(startPath), len(endPath)), 1)
+		totalSteps := estimateSteps(startPath, endPath, pathDepth)
 		prom.RegisterGaugeFunc(
 			fmt.Sprintf("tracked_iterator_%d", ret.id),
 			func() float64 {
@@ -136,9 +137,9 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 				if nil == lastPath {
 					return 0.0
 				}
-				currentDistance := pathDistance(lastPath, endPath)
-				if currentDistance > 0 {
-					return (float64(totalDistance) - float64(currentDistance)) / float64(totalDistance) * 100.0
+				remainingSteps := estimateSteps(lastPath, endPath, pathDepth)
+				if remainingSteps > 0 {
+					return (float64(totalSteps) - float64(remainingSteps)) / float64(totalSteps) * 100.0
 				} else {
 					return 100.0
 				}

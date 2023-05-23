@@ -52,32 +52,24 @@ func decrementPath(path []byte) bool {
 	return true
 }
 
-// Return the distance between two paths.  This is the "distance to go" from start to end and the result is
-// equivalent to counting the number of times decrementPath(end) would need to be called before end <= start.
-// If end is already <= start, the result is 0.
-func pathDistance(start []byte, end []byte) uint64 {
-	// We see paths in several forms, nil, 0600, 06, etc. We need to coerce them into a comparable form.
-	// For nil, start and end mean the extremes of 0x0 and 0x10.  For differences in length, we sometimes see a
+// Estimate the number of iterations necessary to step from start to end.
+func estimateSteps(start []byte, end []byte, depth int) uint64 {
+	// We see paths in several forms (nil, 0600, 06, etc.). We need to adjust them to a comparable form.
+	// For nil, start and end indicate the extremes of 0x0 and 0x10.  For differences in depth, we often see a
 	// start/end range on a bounded iterator specified like 0500:0600, while the value returned by it.Path() may
-	// be shorter, like 06.  For the kind of comparison we are doing here, 06 and 0600 should be treated such
-	// that 05:06 = 0500:0600 = 16.
-	normalizePathRange := func(start []byte, end []byte) ([]byte, []byte) {
+	// be shorter, like 06.  Since our goal is to estimate how many steps it would take to move from start to end,
+	// we want to perform the comparison at a stable depth, since to move from 05 to 06 is only 1 step, but
+	// to move from 0500:06 is 16.
+	normalizePathRange := func(start []byte, end []byte, depth int) ([]byte, []byte) {
 		if 0 == len(start) {
 			start = []byte{0x0}
 		}
 		if 0 == len(end) {
 			end = []byte{0x10}
 		}
-		if len(start) == len(end) {
-			return start, end
-		}
-		maxLen := len(end)
-		if len(start) > len(end) {
-			maxLen = len(start)
-		}
-		normalizedStart := make([]byte, maxLen)
-		normalizedEnd := make([]byte, maxLen)
-		for i := 0; i < maxLen; i++ {
+		normalizedStart := make([]byte, depth)
+		normalizedEnd := make([]byte, depth)
+		for i := 0; i < depth; i++ {
 			if i < len(start) {
 				normalizedStart[i] = start[i]
 			}
@@ -101,7 +93,7 @@ func pathDistance(start []byte, end []byte) uint64 {
 	}
 
 	// Fix the paths.
-	start, end = normalizePathRange(start, end)
+	start, end = normalizePathRange(start, end, depth)
 
 	// No negative distances, if the start is already >= end, the distance is 0.
 	if bytes.Compare(start, end) >= 0 {
@@ -163,4 +155,12 @@ func checkUpperPathBound(nodePath, endPath []byte) bool {
 	}
 
 	return bytes.Compare(nodePath, endPath) <= 0
+}
+
+func max(a int, b int) int {
+	if a > b {
+		return a
+	}
+
+	return b
 }
