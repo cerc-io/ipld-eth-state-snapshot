@@ -7,7 +7,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
+	"sync/atomic"
 	"syscall"
+
+	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/prom"
 
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/trie"
@@ -15,12 +19,33 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var trackedIterCount int32
+
 type trackedIter struct {
+	id   int32
+	mu   sync.Mutex
+	done atomic.Bool
 	trie.NodeIterator
 	tracker *iteratorTracker
 
-	seekedPath []byte // latest path seeked from the tracked iterator
+	seekedPath []byte // latest full node path seeked from the tracked iterator
+	startPath  []byte // startPath for the tracked iterator
 	endPath    []byte // endPath for the tracked iterator
+	lastPath   []byte // latest it.Path() (not the full node path) seeked
+}
+
+func (it *trackedIter) getLastPath() []byte {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+
+	return it.lastPath
+}
+
+func (it *trackedIter) setLastPath(val []byte) {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+
+	it.lastPath = val
 }
 
 func (it *trackedIter) Next(descend bool) bool {
@@ -32,6 +57,9 @@ func (it *trackedIter) Next(descend bool) bool {
 		} else {
 			log.Errorf("iterator stopped after tracker halted: path=%x", it.Path())
 		}
+		it.done.Store(true)
+	} else {
+		it.setLastPath(it.Path())
 	}
 	return ret
 }
@@ -82,12 +110,43 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 	// if the iterator being tracked is a PrefixBoundIterator, capture it's end path
 	// to be used in trie traversal
 	var endPath []byte
+	var startPath []byte
 	if boundedIter, ok := it.(*iter.PrefixBoundIterator); ok {
+		startPath = boundedIter.StartPath
 		endPath = boundedIter.EndPath
 	}
 
-	ret = &trackedIter{it, tr, iterSeekedPath, endPath}
+	ret = &trackedIter{
+		atomic.AddInt32(&trackedIterCount, 1),
+		sync.Mutex{},
+		atomic.Bool{},
+		it,
+		tr,
+		iterSeekedPath,
+		startPath,
+		endPath,
+		nil,
+	}
 	tr.startChan <- ret
+
+	if prom.Enabled() {
+		pathDepth := max(max(len(startPath), len(endPath)), 1)
+		totalSteps := estimateSteps(startPath, endPath, pathDepth)
+		prom.RegisterGaugeFunc(
+			fmt.Sprintf("tracked_iterator_%d", ret.id),
+			func() float64 {
+				if ret.done.Load() {
+					return 100.0
+				}
+				lastPath := ret.getLastPath()
+				if nil == lastPath {
+					return 0.0
+				}
+				remainingSteps := estimateSteps(lastPath, endPath, pathDepth)
+				return (float64(totalSteps) - float64(remainingSteps)) / float64(totalSteps) * 100.0
+			})
+	}
+
 	return
 }
 

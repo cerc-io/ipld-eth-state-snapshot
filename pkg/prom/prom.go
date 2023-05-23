@@ -70,6 +70,16 @@ func Init() {
 	})
 }
 
+func RegisterGaugeFunc(name string, function func() float64) {
+	promauto.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: statsSubsystem,
+			Name:      name,
+			Help:      name,
+		}, function)
+}
+
 // RegisterDBCollector create metric collector for given connection
 func RegisterDBCollector(name string, db DBStatsGetter) {
 	if metrics {
@@ -110,4 +120,8 @@ func DecActiveIterCount() {
 	if metrics {
 		activeIteratorCount.Dec()
 	}
+}
+
+func Enabled() bool {
+	return metrics
 }
