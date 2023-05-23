@@ -22,8 +22,9 @@ import (
 var trackedIterCount int32
 
 type trackedIter struct {
-	id int32
-	mu sync.Mutex
+	id   int32
+	mu   sync.Mutex
+	done atomic.Bool
 	trie.NodeIterator
 	tracker *iteratorTracker
 
@@ -56,7 +57,7 @@ func (it *trackedIter) Next(descend bool) bool {
 		} else {
 			log.Errorf("iterator stopped after tracker halted: path=%x", it.Path())
 		}
-		it.setLastPath(it.endPath)
+		it.done.Store(true)
 	} else {
 		it.setLastPath(it.Path())
 	}
@@ -118,6 +119,7 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 	ret = &trackedIter{
 		atomic.AddInt32(&trackedIterCount, 1),
 		sync.Mutex{},
+		atomic.Bool{},
 		it,
 		tr,
 		iterSeekedPath,
@@ -133,16 +135,15 @@ func (tr *iteratorTracker) tracked(it trie.NodeIterator, recoveredPath []byte) (
 		prom.RegisterGaugeFunc(
 			fmt.Sprintf("tracked_iterator_%d", ret.id),
 			func() float64 {
+				if ret.done.Load() {
+					return 100.0
+				}
 				lastPath := ret.getLastPath()
 				if nil == lastPath {
 					return 0.0
 				}
 				remainingSteps := estimateSteps(lastPath, endPath, pathDepth)
-				if remainingSteps > 0 {
-					return (float64(totalSteps) - float64(remainingSteps)) / float64(totalSteps) * 100.0
-				} else {
-					return 100.0
-				}
+				return (float64(totalSteps) - float64(remainingSteps)) / float64(totalSteps) * 100.0
 			})
 	}
 
