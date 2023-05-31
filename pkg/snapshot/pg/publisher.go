@@ -110,6 +110,7 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 		return err
 	}
 	tx := pubTx{snapTx, nil}
+	// we must avoid overshadowing the `err`
 	defer func() {
 		err = snapt.CommitOrRollback(tx, err)
 		if err != nil {
@@ -117,7 +118,7 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 		}
 	}()
 
-	if err := tx.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
+	if err = tx.publishIPLD(headerNode.Cid(), headerNode.RawData(), header.Number); err != nil {
 		return err
 	}
 
