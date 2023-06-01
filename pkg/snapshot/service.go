@@ -200,8 +200,12 @@ func (s *Service) createSnapshot(ctx context.Context, it trie.NodeIterator, head
 	if err != nil {
 		return err
 	}
+	// we must avoid overshadowing the `err`
 	defer func() {
 		err = CommitOrRollback(tx, err)
+		if err != nil {
+			log.Errorf("CommitOrRollback failed: %s", err)
+		}
 	}()
 
 	// path (from recovery dump) to be seeked on recovery
