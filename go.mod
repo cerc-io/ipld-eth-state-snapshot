@@ -3,7 +3,7 @@ module github.com/cerc-io/ipld-eth-state-snapshot
 go 1.19
 
 require (
-	github.com/ethereum/go-ethereum v1.11.5
+	github.com/ethereum/go-ethereum v1.11.6
 	github.com/golang/mock v1.6.0
 	github.com/ipfs/go-cid v0.2.0
 	github.com/lib/pq v1.10.7
@@ -99,4 +99,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.11.5 => github.com/cerc-io/go-ethereum v1.11.5-statediff-5.0.4-alpha
+replace github.com/ethereum/go-ethereum v1.11.6 => github.com/cerc-io/go-ethereum v1.11.6-statediff-5.0.6

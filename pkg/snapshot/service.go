@@ -139,7 +139,7 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 		// nothing to restore
 		log.Debugf("no iterators to restore")
 		if params.Workers > 1 {
-			iters = iter.SubtrieIterators(tree, params.Workers)
+			iters = iter.SubtrieIterators(tree.NodeIterator, params.Workers)
 		} else {
 			iters = []trie.NodeIterator{tree.NodeIterator(nil)}
 		}
