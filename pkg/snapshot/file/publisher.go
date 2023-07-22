@@ -200,7 +200,9 @@ func (p *publisher) PublishHeader(header *types.Header) error {
 		header.UncleHash.Hex(),
 		header.Bloom.Bytes(),
 		strconv.FormatUint(header.Time, 10),
-		header.Coinbase.String())
+		header.Coinbase.String(),
+		true,
+	)
 	if err != nil {
 		return err
 	}

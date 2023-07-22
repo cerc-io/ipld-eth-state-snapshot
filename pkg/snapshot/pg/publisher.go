@@ -136,7 +136,9 @@ func (p *publisher) PublishHeader(header *types.Header) (err error) {
 		header.UncleHash.Hex(),
 		header.Bloom.Bytes(),
 		strconv.FormatUint(header.Time, 10),
-		header.Coinbase.String())
+		header.Coinbase.String(),
+		true,
+	)
 	return err
 }
 
