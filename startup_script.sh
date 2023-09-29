@@ -11,7 +11,7 @@ fi
 # Check the database variables are set
 test "$VDB_COMMAND"
 
-# docker must be run in privilaged mode for mounts to work
+# docker must be run in privileged mode for mounts to work
 echo "Setting up /app/geth-rw overlayed /app/geth-ro"
 mkdir -p /tmp/overlay
 mount -t tmpfs tmpfs /tmp/overlay
@@ -32,8 +32,8 @@ fi
 
 START_TIME=`date -u +"%Y-%m-%dT%H:%M:%SZ"`
 echo "Running the snapshot service" && \
-if [[ ! -z "$LOGRUS_FILE" ]]; then
-  $SETUID /app/ipld-eth-state-snapshot "$VDB_COMMAND" $* |& $SETUID tee ${LOGRUS_FILE}.console
+if [[ -n "$LOG_FILE" ]]; then
+  $SETUID /app/ipld-eth-state-snapshot "$VDB_COMMAND" $* |& $SETUID tee ${LOG_FILE}.console
   rc=$?
 else
   $SETUID /app/ipld-eth-state-snapshot "$VDB_COMMAND" $*

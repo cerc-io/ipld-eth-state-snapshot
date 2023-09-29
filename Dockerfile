@@ -1,27 +1,31 @@
 FROM golang:1.20-alpine as builder
 
-RUN apk --update --no-cache add make git g++ linux-headers
+RUN apk add --no-cache git gcc musl-dev binutils-gold
 # DEBUG
 RUN apk add busybox-extras
 
-# Get and build ipfs-blockchain-watcher
-ADD . /go/src/github.com/cerc-io/ipld-eth-state-snapshot
-#RUN git clone https://github.com/cerc-io/ipld-eth-state-snapshot.git /go/src/github.com/vulcanize/ipld-eth-state-snapshot
+WORKDIR /ipld-eth-state-snapshot
 
-WORKDIR /go/src/github.com/cerc-io/ipld-eth-state-snapshot
-RUN GO111MODULE=on GCO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o ipld-eth-state-snapshot .
+ARG GIT_VDBTO_TOKEN
 
-# app container
+COPY go.mod go.sum ./
+RUN if [ -n "$GIT_VDBTO_TOKEN" ]; then git config --global url."https://$GIT_VDBTO_TOKEN:@git.vdb.to/".insteadOf "https://git.vdb.to/"; fi && \
+    go mod download && \
+    rm -f ~/.gitconfig
+COPY . .
+
+RUN go build -ldflags '-extldflags "-static"' -o ipld-eth-state-snapshot .
+
 FROM alpine
 
 RUN apk --no-cache add su-exec bash
 
 WORKDIR /app
 
-COPY --from=builder /go/src/github.com/cerc-io/ipld-eth-state-snapshot/startup_script.sh .
-COPY --from=builder /go/src/github.com/cerc-io/ipld-eth-state-snapshot/environments environments
+COPY --from=builder /ipld-eth-state-snapshot/startup_script.sh .
+COPY --from=builder /ipld-eth-state-snapshot/environments environments
 
 # keep binaries immutable
-COPY --from=builder /go/src/github.com/cerc-io/ipld-eth-state-snapshot/ipld-eth-state-snapshot ipld-eth-state-snapshot
+COPY --from=builder /ipld-eth-state-snapshot/ipld-eth-state-snapshot ipld-eth-state-snapshot
 
 ENTRYPOINT ["/app/startup_script.sh"]

@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/sirupsen/logrus"
@@ -23,6 +24,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cerc-io/ipld-eth-state-snapshot/pkg/snapshot"
+	"github.com/cerc-io/plugeth-statediff/indexer"
 )
 
 // stateSnapshotCmd represents the stateSnapshot command
@@ -40,8 +42,7 @@ var stateSnapshotCmd = &cobra.Command{
 }
 
 func stateSnapshot() {
-	modeStr := viper.GetString(snapshot.SNAPSHOT_MODE_TOML)
-	mode := snapshot.SnapshotMode(modeStr)
+	mode := snapshot.SnapshotMode(viper.GetString(snapshot.SNAPSHOT_MODE_TOML))
 	config, err := snapshot.NewConfig(mode)
 	if err != nil {
 		logWithCommand.Fatalf("unable to initialize config: %v", err)
@@ -59,12 +60,25 @@ func stateSnapshot() {
 		logWithCommand.Infof("no recovery file set, using default: %s", recoveryFile)
 	}
 
-	pub, err := snapshot.NewPublisher(mode, config)
+	var idxconfig indexer.Config
+	switch mode {
+	case snapshot.PgSnapshot:
+		idxconfig = *config.DB
+	case snapshot.FileSnapshot:
+		idxconfig = *config.File
+	}
+	_, indexer, err := indexer.NewStateDiffIndexer(
+		context.Background(),
+		nil, // ChainConfig is only used in PushBlock, which we don't call
+		config.Eth.NodeInfo,
+		idxconfig,
+		false,
+	)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
 
-	snapshotService, err := snapshot.NewSnapshotService(edb, pub, recoveryFile)
+	snapshotService, err := snapshot.NewSnapshotService(edb, indexer, recoveryFile)
 	if err != nil {
 		logWithCommand.Fatal(err)
 	}
@@ -79,14 +93,14 @@ func stateSnapshot() {
 			logWithCommand.Fatal(err)
 		}
 	}
-	logWithCommand.Infof("state snapshot at height %d is complete", height)
+	logWithCommand.Infof("State snapshot at height %d is complete", height)
 }
 
 func init() {
 	rootCmd.AddCommand(stateSnapshotCmd)
 
-	stateSnapshotCmd.PersistentFlags().String(snapshot.LVL_DB_PATH_CLI, "", "path to primary datastore")
-	stateSnapshotCmd.PersistentFlags().String(snapshot.ANCIENT_DB_PATH_CLI, "", "path to ancient datastore")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.LEVELDB_PATH_CLI, "", "path to primary datastore")
+	stateSnapshotCmd.PersistentFlags().String(snapshot.LEVELDB_ANCIENT_CLI, "", "path to ancient datastore")
 	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_BLOCK_HEIGHT_CLI, "", "block height to extract state at")
 	stateSnapshotCmd.PersistentFlags().Int(snapshot.SNAPSHOT_WORKERS_CLI, 1, "number of concurrent workers to use")
 	stateSnapshotCmd.PersistentFlags().String(snapshot.SNAPSHOT_RECOVERY_FILE_CLI, "", "file to recover from a previous iteration")
@@ -94,8 +108,8 @@ func init() {
 	stateSnapshotCmd.PersistentFlags().String(snapshot.FILE_OUTPUT_DIR_CLI, "", "directory for writing ouput to while operating in 'file' mode")
 	stateSnapshotCmd.PersistentFlags().StringArray(snapshot.SNAPSHOT_ACCOUNTS_CLI, nil, "list of account addresses to limit snapshot to")
 
-	viper.BindPFlag(snapshot.LVL_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.LVL_DB_PATH_CLI))
-	viper.BindPFlag(snapshot.ANCIENT_DB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.ANCIENT_DB_PATH_CLI))
+	viper.BindPFlag(snapshot.LEVELDB_PATH_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.LEVELDB_PATH_CLI))
+	viper.BindPFlag(snapshot.LEVELDB_ANCIENT_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.LEVELDB_ANCIENT_CLI))
 	viper.BindPFlag(snapshot.SNAPSHOT_BLOCK_HEIGHT_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_BLOCK_HEIGHT_CLI))
 	viper.BindPFlag(snapshot.SNAPSHOT_WORKERS_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_WORKERS_CLI))
 	viper.BindPFlag(snapshot.SNAPSHOT_RECOVERY_FILE_TOML, stateSnapshotCmd.PersistentFlags().Lookup(snapshot.SNAPSHOT_RECOVERY_FILE_CLI))

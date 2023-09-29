@@ -21,12 +21,10 @@ const (
 	SNAPSHOT_WORKERS       = "SNAPSHOT_WORKERS"
 	SNAPSHOT_RECOVERY_FILE = "SNAPSHOT_RECOVERY_FILE"
 	SNAPSHOT_MODE          = "SNAPSHOT_MODE"
-	SNAPSHOT_START_HEIGHT  = "SNAPSHOT_START_HEIGHT"
-	SNAPSHOT_END_HEIGHT    = "SNAPSHOT_END_HEIGHT"
 	SNAPSHOT_ACCOUNTS      = "SNAPSHOT_ACCOUNTS"
 
-	LOGRUS_LEVEL = "LOGRUS_LEVEL"
-	LOGRUS_FILE  = "LOGRUS_FILE"
+	LOG_LEVEL = "LOG_LEVEL"
+	LOG_FILE  = "LOG_FILE"
 
 	PROM_METRICS   = "PROM_METRICS"
 	PROM_HTTP      = "PROM_HTTP"
@@ -36,8 +34,8 @@ const (
 
 	FILE_OUTPUT_DIR = "FILE_OUTPUT_DIR"
 
-	ANCIENT_DB_PATH = "ANCIENT_DB_PATH"
-	LVL_DB_PATH     = "LVL_DB_PATH"
+	LEVELDB_ANCIENT = "LEVELDB_ANCIENT"
+	LEVELDB_PATH    = "LEVELDB_PATH"
 
 	ETH_CLIENT_NAME   = "ETH_CLIENT_NAME"
 	ETH_GENESIS_BLOCK = "ETH_GENESIS_BLOCK"
@@ -61,12 +59,10 @@ const (
 	SNAPSHOT_WORKERS_TOML       = "snapshot.workers"
 	SNAPSHOT_RECOVERY_FILE_TOML = "snapshot.recoveryFile"
 	SNAPSHOT_MODE_TOML          = "snapshot.mode"
-	SNAPSHOT_START_HEIGHT_TOML  = "snapshot.startHeight"
-	SNAPSHOT_END_HEIGHT_TOML    = "snapshot.endHeight"
 	SNAPSHOT_ACCOUNTS_TOML      = "snapshot.accounts"
 
-	LOGRUS_LEVEL_TOML = "log.level"
-	LOGRUS_FILE_TOML  = "log.file"
+	LOG_LEVEL_TOML = "log.level"
+	LOG_FILE_TOML  = "log.file"
 
 	PROM_METRICS_TOML   = "prom.metrics"
 	PROM_HTTP_TOML      = "prom.http"
@@ -76,8 +72,8 @@ const (
 
 	FILE_OUTPUT_DIR_TOML = "file.outputDir"
 
-	ANCIENT_DB_PATH_TOML = "leveldb.ancient"
-	LVL_DB_PATH_TOML     = "leveldb.path"
+	LEVELDB_ANCIENT_TOML = "leveldb.ancient"
+	LEVELDB_PATH_TOML    = "leveldb.path"
 
 	ETH_CLIENT_NAME_TOML   = "ethereum.clientName"
 	ETH_GENESIS_BLOCK_TOML = "ethereum.genesisBlock"
@@ -101,12 +97,10 @@ const (
 	SNAPSHOT_WORKERS_CLI       = "workers"
 	SNAPSHOT_RECOVERY_FILE_CLI = "recovery-file"
 	SNAPSHOT_MODE_CLI          = "snapshot-mode"
-	SNAPSHOT_START_HEIGHT_CLI  = "start-height"
-	SNAPSHOT_END_HEIGHT_CLI    = "end-height"
 	SNAPSHOT_ACCOUNTS_CLI      = "snapshot-accounts"
 
-	LOGRUS_LEVEL_CLI = "log-level"
-	LOGRUS_FILE_CLI  = "log-file"
+	LOG_LEVEL_CLI = "log-level"
+	LOG_FILE_CLI  = "log-file"
 
 	PROM_METRICS_CLI   = "prom-metrics"
 	PROM_HTTP_CLI      = "prom-http"
@@ -116,8 +110,8 @@ const (
 
 	FILE_OUTPUT_DIR_CLI = "output-dir"
 
-	ANCIENT_DB_PATH_CLI = "ancient-path"
-	LVL_DB_PATH_CLI     = "leveldb-path"
+	LEVELDB_ANCIENT_CLI = "ancient-path"
+	LEVELDB_PATH_CLI    = "leveldb-path"
 
 	ETH_CLIENT_NAME_CLI   = "ethereum-client-name"
 	ETH_GENESIS_BLOCK_CLI = "ethereum-genesis-block"

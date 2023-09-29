@@ -19,16 +19,16 @@ Config format:
 ```toml
 [snapshot]
     mode         = "file"           # indicates output mode <postgres | file>
-    workers      = 4                # degree of concurrency, the state trie is subdivided into sections that are traversed and processed concurrently
+    workers      = 4                # degree of concurrency: the state trie is subdivided into sections that are traversed and processed concurrently
     blockHeight  = -1               # blockheight to perform the snapshot at (-1 indicates to use the latest blockheight found in leveldb)
     recoveryFile = "recovery_file"  # specifies a file to output recovery information on error or premature closure
     accounts = []                   # list of accounts (addresses) to take the snapshot for # SNAPSHOT_ACCOUNTS
 
 [leveldb]
     # path to geth leveldb
-    path    = "/Users/user/Library/Ethereum/geth/chaindata"         # LVL_DB_PATH
+    path    = "/Users/user/Library/Ethereum/geth/chaindata"         # LEVELDB_PATH
     # path to geth ancient database
-    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient" # ANCIENT_DB_PATH
+    ancient = "/Users/user/Library/Ethereum/geth/chaindata/ancient" # LEVELDB_ANCIENT
 
 [database]
     # when operating in 'postgres' output mode
@@ -64,6 +64,12 @@ Config format:
     chainID      = "1"      # ETH_CHAIN_ID
     genesisBlock = "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3" # ETH_GENESIS_BLOCK
 ```
+
+> **Note:** previous versions of this service used different variable names. To update, change the following:
+> * `LVL_DB_PATH` => `LEVELDB_PATH`
+> * `ANCIENT_DB_PATH` => `LEVELDB_ANCIENT`
+> * `LOGRUS_LEVEL`, `LOGRUS_FILE` => `LOG_LEVEL`, `LOG_FILE`, etc.
+
 
 ## Usage
 
@@ -125,8 +131,8 @@ Config format:
     * Combine output from multiple workers and copy to post-processed output directory:
 
         ```bash
-        # public.blocks
-        cat {output_dir,output_dir/*}/public.blocks.csv > output_dir/processed_output/combined-public.blocks.csv
+        # ipld.blocks
+        cat {output_dir,output_dir/*}/ipld.blocks.csv > output_dir/processed_output/combined-ipld.blocks.csv
 
         # eth.state_cids
         cat output_dir/*/eth.state_cids.csv > output_dir/processed_output/combined-eth.state_cids.csv
@@ -144,8 +150,8 @@ Config format:
     * De-duplicate data:
 
         ```bash
-        # public.blocks
-        sort -u output_dir/processed_output/combined-public.blocks.csv -o output_dir/processed_output/deduped-combined-public.blocks.csv
+        # ipld.blocks
+        sort -u output_dir/processed_output/combined-ipld.blocks.csv -o output_dir/processed_output/deduped-combined-ipld.blocks.csv
 
         # eth.header_cids
         sort -u output_dir/processed_output/eth.header_cids.csv -o output_dir/processed_output/deduped-eth.header_cids.csv
@@ -171,8 +177,8 @@ Config format:
     # public.nodes
     COPY public.nodes FROM '/output_dir/processed_output/public.nodes.csv' CSV;
 
-    # public.blocks
-    COPY public.blocks FROM '/output_dir/processed_output/deduped-combined-public.blocks.csv' CSV;
+    # ipld.blocks
+    COPY ipld.blocks FROM '/output_dir/processed_output/deduped-combined-ipld.blocks.csv' CSV;
 
     # eth.header_cids
     COPY eth.header_cids FROM '/output_dir/processed_output/deduped-eth.header_cids.csv' CSV;

@@ -1,0 +1,23 @@
+[database]
+    name         = "cerc_testing"
+    hostname     = "127.0.0.1"
+    port         = 8077
+    user         = "vdbm"
+    password     = "password"
+
+[log]
+    level        = "debug"
+
+[snapshot]
+    workers      = 4
+    recoveryFile = "snapshot_recovery_file"
+    # Note: these are overriden in the workflow step
+    # mode         = "postgres"
+    # blockHeight  = 0
+
+[ethereum]
+    clientName   = "test-client"
+    nodeID       = "test-node"
+    networkID    = "test-network"
+    chainID      = 1
+    genesisBlock = "0x37cbb63c7150a7b60f2878433963ed8ba7e5f82fb2683ec7a945c974e1cf4e05"

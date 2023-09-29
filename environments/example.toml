@@ -11,7 +11,7 @@
 
 [log]
     level = "info"
-    file = "log_file"
+    file = ""                   # Leave blank to output to stdout
 
 [prom]
     metrics = true
@@ -25,9 +25,6 @@
     workers = 4
     blockHeight = 32
     recoveryFile = "recovery_file"
-
-    startHeight = 1
-    endHeight = 12
 
 [file]
     outputDir = "output_dir/"

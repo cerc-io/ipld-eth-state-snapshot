@@ -2,13 +2,13 @@
 
 * For a given table in the `ipld-eth-db` schema, we know the number of columns to be expected in each row in the data dump:
 
-  | Table             | Expected columns |
-  | ----------------- |:----------------:|
-  | public.nodes      | 5                |
-  | public.blocks     | 3                |
-  | eth.header_cids   | 16               |
-  | eth.state_cids    | 8                |
-  | eth.storage_cids  | 9                |
+  | Table              | Expected columns |
+  |--------------------|:----------------:|
+  | `public.nodes`     | 5                |
+  | `ipld.blocks`      | 3                |
+  | `eth.header_cids`  | 16               |
+  | `eth.state_cids`   | 8                |
+  | `eth.storage_cids` | 9                |
 
 ### Find Bad Data
 
@@ -29,7 +29,7 @@
     ```bash
     ./scripts/find-bad-rows.sh -i eth.state_cids.csv -c 8 -o res.txt -d true
     ```
-    
+
     Output:
 
     ```
@@ -40,7 +40,7 @@
 
     ```bash
     ./scripts/find-bad-rows.sh -i public.nodes.csv -c 5 -o res.txt -d true
-    ./scripts/find-bad-rows.sh -i public.blocks.csv -c 3 -o res.txt -d true
+    ./scripts/find-bad-rows.sh -i ipld.blocks.csv -c 3 -o res.txt -d true
     ./scripts/find-bad-rows.sh -i eth.header_cids.csv -c 16 -o res.txt -d true
     ./scripts/find-bad-rows.sh -i eth.state_cids.csv -c 8 -o res.txt -d true
     ./scripts/find-bad-rows.sh -i eth.storage_cids.csv -c 9 -o res.txt -d true
@@ -66,7 +66,7 @@
 
     ```bash
     ./scripts/filter-bad-rows.sh -i public.nodes.csv -c 5 -o cleaned-public.nodes.csv
-    ./scripts/filter-bad-rows.sh -i public.blocks.csv -c 3 -o cleaned-public.blocks.csv
+    ./scripts/filter-bad-rows.sh -i ipld.blocks.csv -c 3 -o cleaned-ipld.blocks.csv
     ./scripts/filter-bad-rows.sh -i eth.header_cids.csv -c 16 -o cleaned-eth.header_cids.csv
     ./scripts/filter-bad-rows.sh -i eth.state_cids.csv -c 8 -o cleaned-eth.state_cids.csv
     ./scripts/filter-bad-rows.sh -i eth.storage_cids.csv -c 9 -o cleaned-eth.storage_cids.csv

@@ -1,8 +1,6 @@
 .idea/
 .vscode/
 ipld-eth-state-snapshot
-mocks/
-.vscode
 output_dir*/
 log_file
 recovery_file

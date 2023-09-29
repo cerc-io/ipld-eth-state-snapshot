@@ -19,7 +19,7 @@ package prom
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	mets "github.com/ethereum/go-ethereum/statediff/indexer/database/metrics"
+	mets "github.com/cerc-io/plugeth-statediff/indexer/database/metrics"
 )
 
 // DBStatsGetter is an interface that gets sql.DBStats.

@@ -23,8 +23,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/ethereum/go-ethereum/statediff/indexer/database/sql/postgres"
-	ethNode "github.com/ethereum/go-ethereum/statediff/indexer/node"
+	"github.com/cerc-io/plugeth-statediff/indexer/database/file"
+	"github.com/cerc-io/plugeth-statediff/indexer/database/sql/postgres"
+	ethNode "github.com/cerc-io/plugeth-statediff/indexer/node"
 	"github.com/spf13/viper"
 )
 
@@ -53,18 +54,15 @@ type EthConfig struct {
 	NodeInfo      ethNode.Info
 }
 
-// DBConfig is config parameters for DB.
-type DBConfig struct {
-	URI        string
-	ConnConfig postgres.Config
-}
+// DBConfig contains options for DB output mode.
+type DBConfig = postgres.Config
 
-type FileConfig struct {
-	OutputDir string
-}
+// FileConfig contains options for file output mode.  Note that this service currently only supports
+// CSV output, and does not record watched addresses, so not all fields are used.
+type FileConfig = file.Config
 
 type ServiceConfig struct {
-	AllowedAccounts map[common.Address]struct{}
+	AllowedAccounts []common.Address
 }
 
 func NewConfig(mode SnapshotMode) (*Config, error) {
@@ -84,14 +82,14 @@ func NewInPlaceSnapshotConfig() *Config {
 		&FileConfig{},
 		&ServiceConfig{},
 	}
-	ret.DB.Init()
+	InitDB(ret.DB)
 
 	return ret
 }
 
 // Init Initialises config
 func (c *Config) Init(mode SnapshotMode) error {
-	viper.BindEnv(LOGRUS_FILE_TOML, LOGRUS_FILE)
+	viper.BindEnv(LOG_FILE_TOML, LOG_FILE)
 	viper.BindEnv(ETH_NODE_ID_TOML, ETH_NODE_ID)
 	viper.BindEnv(ETH_CLIENT_NAME_TOML, ETH_CLIENT_NAME)
 	viper.BindEnv(ETH_GENESIS_BLOCK_TOML, ETH_GENESIS_BLOCK)
@@ -106,24 +104,24 @@ func (c *Config) Init(mode SnapshotMode) error {
 		ChainID:      viper.GetUint64(ETH_CHAIN_ID_TOML),
 	}
 
-	viper.BindEnv(ANCIENT_DB_PATH_TOML, ANCIENT_DB_PATH)
-	viper.BindEnv(LVL_DB_PATH_TOML, LVL_DB_PATH)
+	viper.BindEnv(LEVELDB_ANCIENT_TOML, LEVELDB_ANCIENT)
+	viper.BindEnv(LEVELDB_PATH_TOML, LEVELDB_PATH)
 
-	c.Eth.AncientDBPath = viper.GetString(ANCIENT_DB_PATH_TOML)
-	c.Eth.LevelDBPath = viper.GetString(LVL_DB_PATH_TOML)
+	c.Eth.AncientDBPath = viper.GetString(LEVELDB_ANCIENT_TOML)
+	c.Eth.LevelDBPath = viper.GetString(LEVELDB_PATH_TOML)
 
 	switch mode {
 	case FileSnapshot:
-		c.File.Init()
+		InitFile(c.File)
 	case PgSnapshot:
-		c.DB.Init()
+		InitDB(c.DB)
 	default:
 		return fmt.Errorf("no output mode specified")
 	}
 	return c.Service.Init()
 }
 
-func (c *DBConfig) Init() {
+func InitDB(c *DBConfig) {
 	viper.BindEnv(DATABASE_NAME_TOML, DATABASE_NAME)
 	viper.BindEnv(DATABASE_HOSTNAME_TOML, DATABASE_HOSTNAME)
 	viper.BindEnv(DATABASE_PORT_TOML, DATABASE_PORT)
@@ -133,38 +131,38 @@ func (c *DBConfig) Init() {
 	viper.BindEnv(DATABASE_MAX_OPEN_CONNECTIONS_TOML, DATABASE_MAX_OPEN_CONNECTIONS)
 	viper.BindEnv(DATABASE_MAX_CONN_LIFETIME_TOML, DATABASE_MAX_CONN_LIFETIME)
 
-	dbParams := postgres.Config{}
 	// DB params
-	dbParams.DatabaseName = viper.GetString(DATABASE_NAME_TOML)
-	dbParams.Hostname = viper.GetString(DATABASE_HOSTNAME_TOML)
-	dbParams.Port = viper.GetInt(DATABASE_PORT_TOML)
-	dbParams.Username = viper.GetString(DATABASE_USER_TOML)
-	dbParams.Password = viper.GetString(DATABASE_PASSWORD_TOML)
+	c.DatabaseName = viper.GetString(DATABASE_NAME_TOML)
+	c.Hostname = viper.GetString(DATABASE_HOSTNAME_TOML)
+	c.Port = viper.GetInt(DATABASE_PORT_TOML)
+	c.Username = viper.GetString(DATABASE_USER_TOML)
+	c.Password = viper.GetString(DATABASE_PASSWORD_TOML)
 	// Connection config
-	dbParams.MaxIdle = viper.GetInt(DATABASE_MAX_IDLE_CONNECTIONS_TOML)
-	dbParams.MaxConns = viper.GetInt(DATABASE_MAX_OPEN_CONNECTIONS_TOML)
-	dbParams.MaxConnLifetime = time.Duration(viper.GetInt(DATABASE_MAX_CONN_LIFETIME_TOML)) * time.Second
+	c.MaxIdle = viper.GetInt(DATABASE_MAX_IDLE_CONNECTIONS_TOML)
+	c.MaxConns = viper.GetInt(DATABASE_MAX_OPEN_CONNECTIONS_TOML)
+	c.MaxConnLifetime = time.Duration(viper.GetInt(DATABASE_MAX_CONN_LIFETIME_TOML)) * time.Second
 
-	c.ConnConfig = dbParams
-	c.URI = dbParams.DbConnectionString()
+	c.Driver = postgres.SQLX
 }
 
-func (c *FileConfig) Init() error {
+func InitFile(c *FileConfig) error {
 	viper.BindEnv(FILE_OUTPUT_DIR_TOML, FILE_OUTPUT_DIR)
 	c.OutputDir = viper.GetString(FILE_OUTPUT_DIR_TOML)
 	if c.OutputDir == "" {
 		logrus.Infof("no output directory set, using default: %s", defaultOutputDir)
 		c.OutputDir = defaultOutputDir
 	}
+	// Only support CSV for now
+	c.Mode = file.CSV
 	return nil
 }
 
 func (c *ServiceConfig) Init() error {
 	viper.BindEnv(SNAPSHOT_BLOCK_HEIGHT_TOML, SNAPSHOT_BLOCK_HEIGHT)
-	viper.BindEnv(SNAPSHOT_START_HEIGHT_TOML, SNAPSHOT_START_HEIGHT)
-	viper.BindEnv(SNAPSHOT_END_HEIGHT_TOML, SNAPSHOT_END_HEIGHT)
 	viper.BindEnv(SNAPSHOT_MODE_TOML, SNAPSHOT_MODE)
 	viper.BindEnv(SNAPSHOT_WORKERS_TOML, SNAPSHOT_WORKERS)
+	viper.BindEnv(SNAPSHOT_RECOVERY_FILE_TOML, SNAPSHOT_RECOVERY_FILE)
+
 	viper.BindEnv(PROM_HTTP_TOML, PROM_HTTP)
 	viper.BindEnv(PROM_HTTP_ADDR_TOML, PROM_HTTP_ADDR)
 	viper.BindEnv(PROM_METRICS_TOML, PROM_METRICS)
@@ -174,9 +172,9 @@ func (c *ServiceConfig) Init() error {
 	viper.UnmarshalKey(SNAPSHOT_ACCOUNTS_TOML, &allowedAccounts)
 	accountsLen := len(allowedAccounts)
 	if accountsLen != 0 {
-		c.AllowedAccounts = make(map[common.Address]struct{}, accountsLen)
+		c.AllowedAccounts = make([]common.Address, 0, accountsLen)
 		for _, allowedAccount := range allowedAccounts {
-			c.AllowedAccounts[common.HexToAddress(allowedAccount)] = struct{}{}
+			c.AllowedAccounts = append(c.AllowedAccounts, common.HexToAddress(allowedAccount))
 		}
 	} else {
 		logrus.Infof("no snapshot addresses specified, will perform snapshot of entire trie(s)")
