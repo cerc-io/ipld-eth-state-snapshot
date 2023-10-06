@@ -1,6 +1,7 @@
 package prom
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -32,30 +33,33 @@ func NewTracker(file string, bufsize uint) *MetricsTracker {
 
 func (t *MetricsTracker) wrap(tracked *tracker.Iterator) *metricsIterator {
 	startPath, endPath := tracked.Bounds()
-	startDepth := max(len(startPath), len(endPath))
+	pathDepth := max(max(len(startPath), len(endPath)), 1)
+	totalSteps := estimateSteps(startPath, endPath, pathDepth)
+
 	ret := &metricsIterator{
 		NodeIterator: tracked,
 		id:           trackedIterCount.Add(1),
 	}
+
 	RegisterGaugeFunc(
 		fmt.Sprintf("tracked_iterator_%d", ret.id),
 		func() float64 {
 			ret.RLock()
-			if ret.done {
-				return 1
-			}
+			done := ret.done
 			lastPath := ret.lastPath
 			ret.RUnlock()
-			if lastPath == nil {
-				return 0
+
+			if done {
+				return 100.0
 			}
+
+			if lastPath == nil {
+				return 0.0
+			}
+
 			// estimate remaining distance based on current position and node count
-			depth := max(startDepth, len(lastPath))
-			startPath := normalizePath(startPath, depth)
-			endPath := normalizePath(endPath, depth)
-			progressed := subtractPaths(lastPath, startPath)
-			total := subtractPaths(endPath, startPath)
-			return float64(countSteps(progressed, depth)) / float64(countSteps(total, depth))
+			remainingSteps := estimateSteps(lastPath, endPath, pathDepth)
+			return (float64(totalSteps) - float64(remainingSteps)) / float64(totalSteps) * 100.0
 		})
 	return ret
 }
@@ -91,38 +95,75 @@ func (it *metricsIterator) Next(descend bool) bool {
 	return ret
 }
 
-func normalizePath(path []byte, depth int) []byte {
-	normalized := make([]byte, depth)
-	for i := 0; i < depth; i++ {
-		if i < len(path) {
-			normalized[i] = path[i]
+// Estimate the number of iterations necessary to step from start to end.
+func estimateSteps(start []byte, end []byte, depth int) uint64 {
+	// We see paths in several forms (nil, 0600, 06, etc.). We need to adjust them to a comparable form.
+	// For nil, start and end indicate the extremes of 0x0 and 0x10.  For differences in depth, we often see a
+	// start/end range on a bounded iterator specified like 0500:0600, while the value returned by it.Path() may
+	// be shorter, like 06.  Since our goal is to estimate how many steps it would take to move from start to end,
+	// we want to perform the comparison at a stable depth, since to move from 05 to 06 is only 1 step, but
+	// to move from 0500:06 is 16.
+	normalizePathRange := func(start []byte, end []byte, depth int) ([]byte, []byte) {
+		if 0 == len(start) {
+			start = []byte{0x0}
 		}
-	}
-	return normalized
-}
-
-// Subtract each component, right to left, carrying over if necessary.
-func subtractPaths(a, b []byte) []byte {
-	diff := make([]byte, len(a))
-	carry := false
-	for i := len(a) - 1; i >= 0; i-- {
-		diff[i] = a[i] - b[i]
-		if carry {
-			diff[i]--
+		if 0 == len(end) {
+			end = []byte{0x10}
 		}
-		carry = a[i] < b[i]
+		normalizedStart := make([]byte, depth)
+		normalizedEnd := make([]byte, depth)
+		for i := 0; i < depth; i++ {
+			if i < len(start) {
+				normalizedStart[i] = start[i]
+			}
+			if i < len(end) {
+				normalizedEnd[i] = end[i]
+			}
+		}
+		return normalizedStart, normalizedEnd
 	}
-	return diff
-}
 
-// count total steps in a path according to its depth (length)
-func countSteps(path []byte, depth int) uint {
-	var steps uint
-	for _, b := range path {
-		steps *= 16
-		steps += uint(b)
+	// We have no need to handle negative exponents, so uints are fine.
+	pow := func(x uint64, y uint) uint64 {
+		if 0 == y {
+			return 1
+		}
+		ret := x
+		for i := uint(0); i < y; i++ {
+			ret *= x
+		}
+		return x
 	}
-	return steps
+
+	// Fix the paths.
+	start, end = normalizePathRange(start, end, depth)
+
+	// No negative distances, if the start is already >= end, the distance is 0.
+	if bytes.Compare(start, end) >= 0 {
+		return 0
+	}
+
+	// Subtract each component, right to left, carrying over if necessary.
+	difference := make([]byte, len(start))
+	var carry byte = 0
+	for i := len(start) - 1; i >= 0; i-- {
+		result := end[i] - start[i] - carry
+		if result > 0xf && i > 0 {
+			result &= 0xf
+			carry = 1
+		} else {
+			carry = 0
+		}
+		difference[i] = result
+	}
+
+	// Calculate the result.
+	var ret uint64 = 0
+	for i := 0; i < len(difference); i++ {
+		ret += uint64(difference[i]) * pow(16, uint(len(difference)-i-1))
+	}
+
+	return ret
 }
 
 func max(a int, b int) int {
