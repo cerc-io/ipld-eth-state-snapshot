@@ -124,6 +124,8 @@ func (s *Service) CreateSnapshot(params SnapshotParams) error {
 	nodeSink := func(node types.StateLeafNode) error {
 		nodeMtx.Lock()
 		defer nodeMtx.Unlock()
+		prom.IncStateNodeCount()
+		prom.AddStorageNodeCount(len(node.StorageDiff))
 		return s.indexer.PushStateNode(tx, node, headerid)
 	}
 	ipldSink := func(c types.IPLD) error {
